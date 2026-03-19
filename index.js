@@ -206,6 +206,25 @@ function ensureDirectorHud() {
     renderDirectorHud();
     updateDirectorPrompt();
 }
+// === ПРОВЕРКА АКТИВНОСТИ ЧАТА ===
+function toggleHudVisibility() {
+    const context = SillyTavern.getContext();
+    const toggleBtn = $('#bb-director-toggle');
+    const hud = $('#bb-director-hud');
+
+    // Если chatId существует (не null и не undefined), значит мы в активном чате
+    if (context.chatId) {
+        toggleBtn.show(); // Показываем язычок
+    } else {
+        toggleBtn.hide(); // Прячем язычок
+        
+        // Если панель была открыта, принудительно задвигаем её обратно
+        if (hud.hasClass('open')) {
+            hud.removeClass('open');
+            $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
+        }
+    }
+}
 
 jQuery(async () => {
     try {
@@ -219,10 +238,18 @@ jQuery(async () => {
             });
         }
 
+        // --- НАШИ ИЗМЕНЕНИЯ ЗДЕСЬ ---
         eventSource.on(event_types.APP_READY, () => {
             setupExtensionSettings();
             ensureDirectorHud();
+            toggleHudVisibility(); // <-- Дёргаем проверку при загрузке Таверны!
         });
+
+        // Слушаем переключение или закрытие чатов
+        eventSource.on(event_types.CHAT_CHANGED, () => {
+            toggleHudVisibility(); // <-- Дёргаем проверку при смене чата!
+        });
+        // ----------------------------
 
         // Замена макроса в промптах
         eventSource.on(event_types.GENERATE_AFTER_DATA, (generate_data) => {
