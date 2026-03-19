@@ -59,6 +59,13 @@ function updateDirectorPrompt() {
 // === ОТРИСОВКА ИНТЕРФЕЙСА ===
 function renderDirectorHud() {
     const container = $('#bb-dir-list');
+    
+    // Если сортировка была инициализирована, глушим её перед перерисовкой
+    if (container.hasClass('ui-sortable')) {
+        // @ts-ignore
+        container.sortable('destroy');
+    }
+    
     container.empty();
 
     const directives = extension_settings[MODULE_NAME].directives;
@@ -68,11 +75,13 @@ function renderDirectorHud() {
         const eyeColor = d.active ? '#c084fc' : '#64748b';
         const cardOpacity = d.active ? '1' : '0.5';
 
+        // Обрати внимание: я добавил иконку fa-grip-vertical с классом bb-dir-drag
         const html = `
             <div class="bb-dir-card" style="opacity: ${cardOpacity};" data-index="${index}">
                 <div class="bb-dir-header">
+                    <i class="fa-solid fa-grip-vertical bb-dir-drag" title="Потяни для сортировки"></i>
                     <input type="text" class="bb-dir-name text_pole" value="${d.name}" placeholder="Название стиля...">
-                    <div style="display:flex; gap:8px;">
+                    <div style="display:flex; gap:8px; align-items:center;">
                         <i class="fa-solid ${eyeIcon} bb-dir-toggle" style="color: ${eyeColor}; cursor:pointer;" title="Вкл/Выкл"></i>
                         <i class="fa-solid fa-trash bb-dir-delete" style="color: #ef4444; cursor:pointer;" title="Удалить"></i>
                     </div>
@@ -85,6 +94,33 @@ function renderDirectorHud() {
             </div>
         `;
         container.append(html);
+    });
+
+    // Заводим лебёдку: включаем Drag-and-Drop сортировку
+    // @ts-ignore
+    container.sortable({
+        handle: '.bb-dir-drag', // Таскаем только за нашу иконку
+        axis: 'y',              // Только вверх-вниз
+        containment: 'parent',  // Не даем вытащить карточку за пределы меню
+        tolerance: 'pointer',
+        // @ts-ignore
+        update: function(event, ui) {
+            // Этот блок срабатывает, когда ты отпустил карточку на новом месте
+            const newDirectives = [];
+            // Пробегаемся по новому порядку карточек в DOM
+            $('#bb-dir-list .bb-dir-card').each(function() {
+                const oldIndex = $(this).data('index'); // Берем старый индекс
+                newDirectives.push(extension_settings[MODULE_NAME].directives[oldIndex]);
+            });
+            
+            // Перезаписываем массив в настройках
+            extension_settings[MODULE_NAME].directives = newDirectives;
+            saveSettingsDebounced(); // Сохраняем на диск
+            
+            // Перерисовываем интерфейс, чтобы обновить data-index у всех карточек
+            renderDirectorHud(); 
+            updateDirectorPrompt();
+        }
     });
 }
 
