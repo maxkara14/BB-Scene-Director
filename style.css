@@ -1,0 +1,83 @@
+/* === БОКОВАЯ ПАНЕЛЬ СЛЕВА === */
+#bb-director-hud {
+    position: fixed; top: 0; left: 0;
+    width: 340px; height: 100vh;
+    background: rgba(15, 15, 20, 0.95); backdrop-filter: blur(15px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 1500; 
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex; flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#bb-director-hud.open { 
+    transform: translateX(0); 
+}
+
+/* КНОПКА ОТКРЫТИЯ */
+#bb-director-toggle {
+    position: absolute; right: -42px; top: 30%; 
+    background: rgba(20, 20, 25, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-left: none;
+    color: #c084fc; padding: 15px 10px; border-radius: 0 10px 10px 0; cursor: pointer;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    transition: background 0.2s, color 0.2s;
+}
+#bb-director-toggle:hover { background: rgba(40, 40, 50, 0.95); color: #fff; }
+
+.bb-dir-title {
+    padding: 15px 20px; text-align: center;
+    font-size: 16px; font-weight: 800; color: #fff;
+    letter-spacing: 2px; text-transform: uppercase;
+    background: linear-gradient(to right, rgba(192, 132, 252, 0.1), transparent, rgba(192, 132, 252, 0.1));
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+#bb-dir-list {
+    flex: 1; overflow-y: auto; padding: 15px;
+    display: flex; flex-direction: column; gap: 12px;
+}
+#bb-dir-list::-webkit-scrollbar { width: 4px; }
+#bb-dir-list::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+#bb-dir-list::-webkit-scrollbar-thumb { background: #c084fc; border-radius: 4px; }
+
+/* КАРТОЧКА СТИЛЯ */
+.bb-dir-card {
+    background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px; padding: 15px;
+    display: flex; flex-direction: column; gap: 12px;
+    transition: opacity 0.3s;
+}
+
+.bb-dir-header {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+
+.bb-dir-name {
+    flex: 1; font-weight: bold; color: #e2e8f0; font-size: 14px;
+    background: transparent; border: 1px solid transparent; padding: 4px 8px;
+    border-radius: 4px; box-sizing: border-box; width: 100%; height: auto;
+}
+.bb-dir-name:focus { border-color: #c084fc; background: rgba(255,255,255,0.05); outline: none; }
+
+/* СЛАЙДЕР */
+.bb-dir-slider-row {
+    display: flex; align-items: center; gap: 10px;
+}
+
+.bb-dir-slider {
+    -webkit-appearance: none; flex: 1; height: 6px; border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1); outline: none; cursor: pointer;
+}
+.bb-dir-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #c084fc; cursor: pointer; box-shadow: 0 0 5px rgba(192, 132, 252, 0.5);
+}
+
+/* СКРОЛЛБАР ДЛЯ ЛОГА */
+#bb-dir-preview-text::-webkit-scrollbar { width: 4px; }
+#bb-dir-preview-text::-webkit-scrollbar-track { background: transparent; }
+#bb-dir-preview-text::-webkit-scrollbar-thumb { background: #64748b; border-radius: 4px; }
