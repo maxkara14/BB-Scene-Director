@@ -108,3 +108,7 @@
     background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; 
     border-left: 2px solid #c084fc; max-height: 150px; overflow-y: auto;
 }
+/* РЕЖИМ СТЕЛС (Скрытие неактивных карточек) */
+#bb-dir-list.stealth-mode .bb-dir-card.is-inactive {
+    display: none !important;
+}
