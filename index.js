@@ -46,6 +46,9 @@ function getDirectorPromptText() {
     return prompt;
 }
 
+// ДОБАВЬ ЭТУ СТРОЧКУ (Она сделает промпт доступным для всех):
+window['bbGetSceneDirectorPrompt'] = getDirectorPromptText;
+
 // === ИНЪЕКЦИЯ ПРОМПТА ===
 function updateDirectorPrompt() {
     const promptText = getDirectorPromptText();
