@@ -27,3 +27,5 @@
 -----
 
 *[BruniikBron](https://maxkara14.github.io/BruniikBron/)*
+
+Идею подкинул [Maks_Sh](https://makkssh.github.io/) 👉👈
