@@ -20,6 +20,10 @@ if (!extension_settings[MODULE_NAME]) {
 if (!extension_settings[MODULE_NAME].presets) {
     extension_settings[MODULE_NAME].presets = [];
 }
+// Память последнего выбранного пресета
+if (typeof extension_settings[MODULE_NAME].lastActivePreset === 'undefined') {
+    extension_settings[MODULE_NAME].lastActivePreset = null;
+}
 if (typeof extension_settings[MODULE_NAME].hideInactive === 'undefined') {
     extension_settings[MODULE_NAME].hideInactive = false;
 }
@@ -76,6 +80,12 @@ function renderPresetsDropdown() {
     extension_settings[MODULE_NAME].presets.forEach((p, index) => {
         select.append(`<option value="${index}">${p.name}</option>`);
     });
+
+    // ВОССТАНАВЛИВАЕМ ПАМЯТЬ: Выбираем последний активный пресет
+    const lastPreset = extension_settings[MODULE_NAME].lastActivePreset;
+    if (lastPreset !== null && extension_settings[MODULE_NAME].presets[lastPreset]) {
+        select.val(lastPreset);
+    }
 }
 
 // === ОТРИСОВКА ИНТЕРФЕЙСА ===
@@ -303,9 +313,11 @@ function ensureDirectorHud() {
             extension_settings[MODULE_NAME].directives = JSON.parse(JSON.stringify(presetToLoad.directives));
         }
         
+        // ЗАПОМИНАЕМ ВЫБОР:
+        extension_settings[MODULE_NAME].lastActivePreset = selectedIndex;
+        
         saveSettingsDebounced();
         renderDirectorHud();
-        updateDirectorPrompt();
     });
 
     // ПЕРЕЗАПИСАТЬ ТЕКУЩИЙ (НОВАЯ ФУНКЦИЯ)
@@ -349,8 +361,12 @@ function ensureDirectorHud() {
             smartStyles: activeStyles 
         });
         
+        // ЗАПОМИНАЕМ ТОЛЬКО ЧТО СОЗДАННЫЙ ПРЕСЕТ:
+        extension_settings[MODULE_NAME].lastActivePreset = extension_settings[MODULE_NAME].presets.length - 1;
+        
         saveSettingsDebounced();
         renderPresetsDropdown();
+        // Строчку с .val() можно убрать, так как renderPresetsDropdown теперь сама его выбирает!
         $('#bb-dir-preset-select').val(extension_settings[MODULE_NAME].presets.length - 1);
     });
 
@@ -383,6 +399,15 @@ function ensureDirectorHud() {
 
         if (confirm("Точно удалить этот пресет?")) {
             extension_settings[MODULE_NAME].presets.splice(selectedIndex, 1);
+            
+            // Если мы удалили активный пресет - сбрасываем память
+            if (extension_settings[MODULE_NAME].lastActivePreset === selectedIndex) {
+                extension_settings[MODULE_NAME].lastActivePreset = null;
+            } else if (extension_settings[MODULE_NAME].lastActivePreset > selectedIndex) {
+                // Если удалили тот, что был выше по списку, сдвигаем индекс
+                extension_settings[MODULE_NAME].lastActivePreset--;
+            }
+
             saveSettingsDebounced();
             renderPresetsDropdown();
         }
