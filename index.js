@@ -7,8 +7,8 @@ const MODULE_NAME = "BB-Scene-Director";
 if (!extension_settings[MODULE_NAME]) {
     extension_settings[MODULE_NAME] = {
         directives:[
-            { id: Date.now(), name: "Экшен / Динамика", value: 5, active: false },
-            { id: Date.now() + 1, name: "Драма / Эмоции", value: 5, active: false },
+            { id: Date.now(), name: "Экшен / Динамика", value: 50, active: false }, // Теперь по дефолту 50
+            { id: Date.now() + 1, name: "Драма / Эмоции", value: 50, active: false },
             { id: Date.now() + 2, name: "Жестокость (Gore)", value: 0, active: false }
         ],
         presets: [], 
@@ -20,12 +20,24 @@ if (!extension_settings[MODULE_NAME]) {
 if (!extension_settings[MODULE_NAME].presets) {
     extension_settings[MODULE_NAME].presets = [];
 }
-// Память последнего выбранного пресета
 if (typeof extension_settings[MODULE_NAME].lastActivePreset === 'undefined') {
     extension_settings[MODULE_NAME].lastActivePreset = null;
 }
 if (typeof extension_settings[MODULE_NAME].hideInactive === 'undefined') {
     extension_settings[MODULE_NAME].hideInactive = false;
+}
+
+// === МИГРАЦИЯ ДАННЫХ (Перевод 0-10 в 0-100%) ===
+if (!extension_settings[MODULE_NAME].v2PercentageMigrated) {
+    // Умножаем активные стили
+    extension_settings[MODULE_NAME].directives.forEach(d => { if (d.value <= 10) d.value *= 10; });
+    // Умножаем стили внутри пресетов
+    extension_settings[MODULE_NAME].presets.forEach(p => {
+        if (p.smartStyles) p.smartStyles.forEach(d => { if (d.value <= 10) d.value *= 10; });
+        if (p.directives) p.directives.forEach(d => { if (d.value <= 10) d.value *= 10; });
+    });
+    extension_settings[MODULE_NAME].v2PercentageMigrated = true;
+    saveSettingsDebounced();
 }
 
 // === ГЕНЕРАЦИЯ ТЕКСТА ПРОМПТА ===
@@ -35,22 +47,23 @@ function getDirectorPromptText() {
 
     if (activeDirectives.length === 0) return "";
 
-    let prompt = `[SCENE DIRECTION: Adhere strictly to the following stylistic directives and intensity levels for your narration]\n`;
+    let prompt = `[SCENE DIRECTION: Adhere strictly to the following stylistic parameters. Intensity scale is from 0% to 100%]\n`;
     
     activeDirectives.forEach(d => {
         let intensityDesc = "";
-        if (d.value === 0) intensityDesc = "(CRITICAL: DO NOT USE THIS. ABSOLUTELY ZERO FOCUS)";
-        else if (d.value <= 3) intensityDesc = "(Mild / Subtle elements)";
-        else if (d.value <= 7) intensityDesc = "(Moderate / Noticeable focus)";
-        else intensityDesc = "(EXTREME / PRIMARY FOCUS OF THE SCENE)";
+        // Используем двойное описание (Англ/Рус) для максимального понимания любыми моделями
+        if (d.value === 0) intensityDesc = "(Zero focus / Отключено)";
+        else if (d.value <= 30) intensityDesc = "(Low / Низкий)";
+        else if (d.value <= 65) intensityDesc = "(Medium / Средний)";
+        else if (d.value <= 85) intensityDesc = "(High / Высокий)";
+        else intensityDesc = "(Extreme / Максимальный)";
 
-        prompt += `- ${d.name}: ${d.value}/10 ${intensityDesc}\n`;
+        prompt += `- ${d.name}: ${d.value}% ${intensityDesc}\n`;
     });
 
     return prompt;
 }
 
-// ДОБАВЬ ЭТУ СТРОЧКУ (Она сделает промпт доступным для всех):
 window['bbGetSceneDirectorPrompt'] = getDirectorPromptText;
 
 // === ИНЪЕКЦИЯ ПРОМПТА ===
@@ -81,7 +94,6 @@ function renderPresetsDropdown() {
         select.append(`<option value="${index}">${p.name}</option>`);
     });
 
-    // ВОССТАНАВЛИВАЕМ ПАМЯТЬ: Выбираем последний активный пресет
     const lastPreset = extension_settings[MODULE_NAME].lastActivePreset;
     if (lastPreset !== null && extension_settings[MODULE_NAME].presets[lastPreset]) {
         select.val(lastPreset);
@@ -124,9 +136,9 @@ function renderDirectorHud() {
                     </div>
                 </div>
                 <div class="bb-dir-slider-row">
-                    <span style="font-size: 10px; color:#94a3b8; font-weight:bold;">0</span>
-                    <input type="range" class="bb-dir-slider" min="0" max="10" value="${d.value}">
-                    <span class="bb-dir-val-display" style="font-weight:900; color:#fff; width:20px; text-align:right;">${d.value}</span>
+                    <span style="font-size: 10px; color:#94a3b8; font-weight:bold;">0%</span>
+                    <input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${d.value}">
+                    <span class="bb-dir-val-display" style="font-weight:900; color:#fff; width:40px; text-align:right;">${d.value}%</span>
                 </div>
             </div>
         `;
@@ -246,7 +258,7 @@ function ensureDirectorHud() {
         .on('input', '.bb-dir-slider', function() {
             const index = $(this).closest('.bb-dir-card').data('index');
             const val = parseInt(String($(this).val()), 10);
-            $(this).siblings('.bb-dir-val-display').text(val);
+            $(this).siblings('.bb-dir-val-display').text(val + '%'); // Добавили % в отображение
             extension_settings[MODULE_NAME].directives[index].value = val;
             saveSettingsDebounced();
             updateDirectorPrompt();
@@ -276,7 +288,7 @@ function ensureDirectorHud() {
         extension_settings[MODULE_NAME].directives.push({
             id: Date.now(),
             name: "Новый стиль",
-            value: 5,
+            value: 50, // Стартуем с середины
             active: true
         });
         saveSettingsDebounced();
@@ -313,14 +325,14 @@ function ensureDirectorHud() {
             extension_settings[MODULE_NAME].directives = JSON.parse(JSON.stringify(presetToLoad.directives));
         }
         
-        // ЗАПОМИНАЕМ ВЫБОР:
         extension_settings[MODULE_NAME].lastActivePreset = selectedIndex;
         
         saveSettingsDebounced();
         renderDirectorHud();
+        updateDirectorPrompt();
     });
 
-    // ПЕРЕЗАПИСАТЬ ТЕКУЩИЙ (НОВАЯ ФУНКЦИЯ)
+    // ПЕРЕЗАПИСАТЬ ТЕКУЩИЙ 
     $('#bb-dir-update-preset').on('click', function() {
         const rawValue = $('#bb-dir-preset-select').val();
         if (rawValue === null) {
@@ -339,10 +351,9 @@ function ensureDirectorHud() {
             extension_settings[MODULE_NAME].presets[selectedIndex].smartStyles = activeStyles;
             saveSettingsDebounced();
             
-            // Визуальный отклик (мигаем зеленым)
             const btn = $(this);
             const oldBg = btn.css('background');
-            btn.css('background', 'rgba(34, 197, 94, 0.5)'); // Зеленый цвет успеха
+            btn.css('background', 'rgba(34, 197, 94, 0.5)'); 
             setTimeout(() => btn.css('background', oldBg), 400);
         }
     });
@@ -361,12 +372,10 @@ function ensureDirectorHud() {
             smartStyles: activeStyles 
         });
         
-        // ЗАПОМИНАЕМ ТОЛЬКО ЧТО СОЗДАННЫЙ ПРЕСЕТ:
         extension_settings[MODULE_NAME].lastActivePreset = extension_settings[MODULE_NAME].presets.length - 1;
         
         saveSettingsDebounced();
         renderPresetsDropdown();
-        // Строчку с .val() можно убрать, так как renderPresetsDropdown теперь сама его выбирает!
         $('#bb-dir-preset-select').val(extension_settings[MODULE_NAME].presets.length - 1);
     });
 
@@ -400,11 +409,9 @@ function ensureDirectorHud() {
         if (confirm("Точно удалить этот пресет?")) {
             extension_settings[MODULE_NAME].presets.splice(selectedIndex, 1);
             
-            // Если мы удалили активный пресет - сбрасываем память
             if (extension_settings[MODULE_NAME].lastActivePreset === selectedIndex) {
                 extension_settings[MODULE_NAME].lastActivePreset = null;
             } else if (extension_settings[MODULE_NAME].lastActivePreset > selectedIndex) {
-                // Если удалили тот, что был выше по списку, сдвигаем индекс
                 extension_settings[MODULE_NAME].lastActivePreset--;
             }
 
