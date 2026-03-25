@@ -26,6 +26,10 @@
 
 -----
 
-*[BruniikBron](https://maxkara14.github.io/BruniikBron/)*
+**Автор:** 
 
-Идею подкинул [Maks_Sh](https://makkssh.github.io/) 👉👈
+**[BruniikBron: Lo-Fi & Mods 🌙](https://maxkara14.github.io/BruniikBron/)**
+
+**[TG](t.me/Brun11kBr0n)**
+
+Идею подкинул **[Maks_Sh](https://makkssh.github.io/)** 👉👈
