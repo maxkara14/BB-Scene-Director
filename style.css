@@ -4,7 +4,7 @@
     width: 340px; 
     max-width: 100vw; /* Идеальная посадка на телефонах */
     height: 100dvh; /* Учитываем интерфейс мобильного браузера */
-    background: rgba(15, 15, 20, 0.95); backdrop-filter: blur(15px);
+    background: rgba(15, 15, 20, 0.95);
     border-right: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 1500; 
     transform: translateX(-100%);
@@ -15,6 +15,7 @@
 
 #bb-director-hud.open { 
     transform: translateX(0); 
+    backdrop-filter: blur(15px);
 }
 
 /* КНОПКА ОТКРЫТИЯ */
@@ -50,7 +51,7 @@
     background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px; padding: 15px;
     display: flex; flex-direction: column; gap: 12px;
-    transition: opacity 0.3s, transform 0.2s, border-color 0.2s; /* Плавность */
+    transition: opacity 0.2s, transform 0.15s, border-color 0.15s; /* Чуть легче для слабых устройств */
 }
 
 .bb-dir-card:hover {
@@ -111,4 +112,17 @@
 /* РЕЖИМ СТЕЛС (Скрытие неактивных карточек) */
 #bb-dir-list.stealth-mode .bb-dir-card.is-inactive {
     display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #bb-director-hud,
+    .bb-dir-card,
+    #bb-director-toggle,
+    .bb-dir-drag {
+        transition: none !important;
+    }
+
+    .bb-dir-card:hover {
+        transform: none;
+    }
 }
