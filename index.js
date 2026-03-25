@@ -82,6 +82,15 @@ function updateDirectorPrompt() {
     }
 }
 
+let promptUpdateRaf = null;
+function schedulePromptUpdate() {
+    if (promptUpdateRaf !== null) return;
+    promptUpdateRaf = requestAnimationFrame(() => {
+        promptUpdateRaf = null;
+        updateDirectorPrompt();
+    });
+}
+
 // === ОТРИСОВКА СПИСКА ПРЕСЕТОВ ===
 function renderPresetsDropdown() {
     const select = $('#bb-dir-preset-select');
@@ -118,8 +127,12 @@ function renderDirectorHud() {
     }
 
     const directives = extension_settings[MODULE_NAME].directives;
+    const shouldHideInactive = extension_settings[MODULE_NAME].hideInactive;
+    const htmlChunks = [];
 
     directives.forEach((d, index) => {
+        if (shouldHideInactive && !d.active) return;
+
         const eyeIcon = d.active ? 'fa-eye' : 'fa-eye-slash';
         const eyeColor = d.active ? '#c084fc' : '#64748b';
         const cardOpacity = d.active ? '1' : '0.5';
@@ -142,8 +155,9 @@ function renderDirectorHud() {
                 </div>
             </div>
         `;
-        container.append(html);
+        htmlChunks.push(html);
     });
+    container.html(htmlChunks.join(''));
 
     // @ts-ignore
     container.sortable({
@@ -261,7 +275,7 @@ function ensureDirectorHud() {
             $(this).siblings('.bb-dir-val-display').text(val + '%'); // Добавили % в отображение
             extension_settings[MODULE_NAME].directives[index].value = val;
             saveSettingsDebounced();
-            updateDirectorPrompt();
+            schedulePromptUpdate();
         })
         .on('click', '.bb-dir-toggle', function() {
             const index = $(this).closest('.bb-dir-card').data('index');
@@ -482,13 +496,14 @@ jQuery(async () => {
         });
 
         eventSource.on(event_types.GENERATE_AFTER_DATA, (generate_data) => {
-            if (extension_settings[MODULE_NAME].useMacro && generate_data && Array.isArray(generate_data.messages)) {
-                const promptText = getDirectorPromptText();
-                generate_data.messages.forEach(msg => {
-                    if (msg && msg.content && typeof msg.content === 'string' && msg.content.includes('{{bb_scene}}')) {
-                        msg.content = msg.content.replace(/\{\{bb_scene\}\}/g, promptText);
-                    }
-                });
+            if (!extension_settings[MODULE_NAME].useMacro) return;
+            if (!generate_data || !Array.isArray(generate_data.messages)) return;
+
+            const promptText = getDirectorPromptText();
+            for (const msg of generate_data.messages) {
+                if (msg && typeof msg.content === 'string' && msg.content.includes('{{bb_scene}}')) {
+                    msg.content = msg.content.replace(/\{\{bb_scene\}\}/g, promptText);
+                }
             }
         });
 
