@@ -164,11 +164,11 @@ function renderDirectorHud() {
                 <div class="bb-dir-metrics">
                     <div class="bb-dir-metric">
                         <span>Уровень</span>
-                        <b>${d.value}%</b>
+                        <b class="bb-dir-metric-level">${d.value}%</b>
                     </div>
                     <div class="bb-dir-metric">
                         <span>Режим</span>
-                        <b>${getIntensityLabel(d.value)}</b>
+                        <b class="bb-dir-metric-mode">${getIntensityLabel(d.value)}</b>
                     </div>
                 </div>
             </div>
@@ -245,10 +245,7 @@ function ensureDirectorHud() {
                     <div class="bb-dir-badge">SCENE DIRECTOR</div>
                     <div class="bb-dir-status-pill"><span class="bb-dir-status-dot"></span>АКТИВНО</div>
                 </div>
-                <div class="bb-dir-brand">
-                    <button type="button" class="bb-dir-brand-btn is-active">S</button>
-                    <button type="button" class="bb-dir-brand-btn is-active">D</button>
-                </div>
+                <div class="bb-dir-brand-text">SD</div>
                 <div class="bb-dir-subtitle">СТИЛЬ · ТОН · ДИНАМИКА</div>
             </div>
             
@@ -300,7 +297,10 @@ function ensureDirectorHud() {
         .on('input', '.bb-dir-slider', function() {
             const index = $(this).closest('.bb-dir-card').data('index');
             const val = parseInt(String($(this).val()), 10);
+            const card = $(this).closest('.bb-dir-card');
             $(this).siblings('.bb-dir-val-display').text(val + '%'); // Добавили % в отображение
+            card.find('.bb-dir-metric-level').text(val + '%');
+            card.find('.bb-dir-metric-mode').text(getIntensityLabel(val));
             extension_settings[MODULE_NAME].directives[index].value = val;
             saveSettingsDebounced();
             schedulePromptUpdate();
