@@ -64,6 +64,14 @@ function getDirectorPromptText() {
     return prompt;
 }
 
+function getIntensityLabel(value) {
+    if (value === 0) return "OFF";
+    if (value <= 30) return "LOW";
+    if (value <= 65) return "MID";
+    if (value <= 85) return "HIGH";
+    return "MAX";
+}
+
 window['bbGetSceneDirectorPrompt'] = getDirectorPromptText;
 
 // === ИНЪЕКЦИЯ ПРОМПТА ===
@@ -153,6 +161,16 @@ function renderDirectorHud() {
                     <input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${d.value}">
                     <span class="bb-dir-val-display" style="font-weight:900; color:#fff; width:40px; text-align:right;">${d.value}%</span>
                 </div>
+                <div class="bb-dir-metrics">
+                    <div class="bb-dir-metric">
+                        <span>Уровень</span>
+                        <b class="bb-dir-metric-level">${d.value}%</b>
+                    </div>
+                    <div class="bb-dir-metric">
+                        <span>Режим</span>
+                        <b class="bb-dir-metric-mode">${getIntensityLabel(d.value)}</b>
+                    </div>
+                </div>
             </div>
         `;
         htmlChunks.push(html);
@@ -217,16 +235,23 @@ function ensureDirectorHud() {
     if (document.getElementById('bb-director-hud')) return;
 
     const hudHtml = `
+        <div id="bb-director-toggle" title="Режиссёр Сцены (Стиль игры)">
+            <i class="fa-solid fa-clapperboard"></i>
+            <i class="fa-solid fa-chevron-right" id="bb-dir-arrow" style="font-size: 10px; margin-top: 5px;"></i>
+        </div>
         <div id="bb-director-hud">
-            <div id="bb-director-toggle" title="Режиссёр Сцены (Стиль игры)">
-                <i class="fa-solid fa-clapperboard"></i>
-                <i class="fa-solid fa-chevron-right" id="bb-dir-arrow" style="font-size: 10px; margin-top: 5px;"></i>
+            <div class="bb-dir-title-wrap">
+                <div class="bb-dir-title-top">
+                    <div class="bb-dir-badge">SCENE DIRECTOR</div>
+                    <div class="bb-dir-status-pill"><span class="bb-dir-status-dot"></span>АКТИВНО</div>
+                </div>
+                <div class="bb-dir-brand-text">SD</div>
+                <div class="bb-dir-subtitle">СТИЛЬ · ТОН · ДИНАМИКА</div>
             </div>
-            <div class="bb-dir-title">🎬 Режиссёр Сцены</div>
             
-            <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 8px;">
+            <div class="bb-dir-top-controls" style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 8px;">
                 <select id="bb-dir-preset-select" class="text_pole" style="width: 100%; padding: 5px; font-size: 12px;"></select>
-                <div style="display: flex; gap: 5px; width: 100%;">
+                <div class="bb-dir-preset-actions" style="display: flex; gap: 5px; width: 100%;">
                     <button id="bb-dir-load-preset" class="menu_button interactable" title="Загрузить пресет" style="flex: 1; padding: 5px;"><i class="fa-solid fa-download"></i></button>
                     <button id="bb-dir-update-preset" class="menu_button interactable" title="Перезаписать текущий" style="flex: 1; padding: 5px;"><i class="fa-solid fa-floppy-disk"></i></button>
                     <button id="bb-dir-save-new-preset" class="menu_button interactable" title="Сохранить как новый" style="flex: 1; padding: 5px;"><i class="fa-solid fa-file-circle-plus"></i></button>
@@ -237,8 +262,8 @@ function ensureDirectorHud() {
             
             <div id="bb-dir-list"></div>
             
-            <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div class="bb-dir-footer" style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div class="bb-dir-footer-actions" style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <button id="bb-dir-add-btn" class="menu_button interactable" style="flex: 1; padding: 8px;">
                         <i class="fa-solid fa-plus"></i>&nbsp; Добавить
                     </button>
@@ -260,10 +285,13 @@ function ensureDirectorHud() {
 
     $('#bb-director-toggle').on('click', function() {
         const hud = $('#bb-director-hud');
+        const toggle = $('#bb-director-toggle');
         hud.toggleClass('open');
         if (hud.hasClass('open')) {
+            toggle.addClass('is-open');
             $('#bb-dir-arrow').removeClass('fa-chevron-right').addClass('fa-chevron-left');
         } else {
+            toggle.removeClass('is-open');
             $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
         }
     });
@@ -272,7 +300,10 @@ function ensureDirectorHud() {
         .on('input', '.bb-dir-slider', function() {
             const index = $(this).closest('.bb-dir-card').data('index');
             const val = parseInt(String($(this).val()), 10);
+            const card = $(this).closest('.bb-dir-card');
             $(this).siblings('.bb-dir-val-display').text(val + '%'); // Добавили % в отображение
+            card.find('.bb-dir-metric-level').text(val + '%');
+            card.find('.bb-dir-metric-mode').text(getIntensityLabel(val));
             extension_settings[MODULE_NAME].directives[index].value = val;
             saveSettingsDebounced();
             schedulePromptUpdate();
@@ -468,9 +499,32 @@ function toggleHudVisibility() {
         toggleBtn.hide(); 
         if (hud.hasClass('open')) {
             hud.removeClass('open');
+            toggleBtn.removeClass('is-open');
             $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
         }
     }
+}
+
+function updateHudTopOffset() {
+    const candidates = [
+        '#top-bar',
+        '.top-bar',
+        '#top_settings',
+        '#navigation',
+        '.drawer-content .top'
+    ];
+
+    let maxBottom = 0;
+    for (const selector of candidates) {
+        const el = document.querySelector(selector);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom > maxBottom) {
+            maxBottom = rect.bottom;
+        }
+    }
+
+    document.documentElement.style.setProperty('--bb-dir-offset-top', `${Math.max(0, Math.round(maxBottom))}px`);
 }
 
 jQuery(async () => {
@@ -488,10 +542,14 @@ jQuery(async () => {
             setupExtensionSettings();
             ensureDirectorHud();      
             renderPresetsDropdown();  
+            updateHudTopOffset();
             toggleHudVisibility();
+
+            window.addEventListener('resize', updateHudTopOffset, { passive: true });
         });
 
         eventSource.on(event_types.CHAT_CHANGED, () => {
+            updateHudTopOffset();
             toggleHudVisibility(); 
         });
 
