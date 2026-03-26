@@ -36,13 +36,16 @@
     width: var(--bb-dir-tab-width);
     box-shadow: 7px 0 18px rgba(0,0,0,0.45);
     display: flex; flex-direction: column; align-items: center; gap: 5px;
-    transform: translateX(100%);
     transition: background 0.22s, color 0.22s;
+    z-index: 1501;
 }
 #bb-director-toggle:hover { background: rgba(45, 55, 88, 0.95); color: #fff; }
 
-#bb-director-hud.open #bb-director-toggle {
-    transform: none;
+#bb-director-hud:not(.open) #bb-director-toggle {
+    position: fixed;
+    left: 0;
+    right: auto;
+    top: calc(var(--bb-dir-offset-top, 0px) + 38vh);
 }
 
 .bb-dir-title {
