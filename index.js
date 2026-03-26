@@ -501,6 +501,28 @@ function toggleHudVisibility() {
     }
 }
 
+function updateHudTopOffset() {
+    const candidates = [
+        '#top-bar',
+        '.top-bar',
+        '#top_settings',
+        '#navigation',
+        '.drawer-content .top'
+    ];
+
+    let maxBottom = 0;
+    for (const selector of candidates) {
+        const el = document.querySelector(selector);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom > maxBottom) {
+            maxBottom = rect.bottom;
+        }
+    }
+
+    document.documentElement.style.setProperty('--bb-dir-offset-top', `${Math.max(0, Math.round(maxBottom))}px`);
+}
+
 jQuery(async () => {
     try {
         const { eventSource, event_types } = SillyTavern.getContext();
@@ -516,10 +538,14 @@ jQuery(async () => {
             setupExtensionSettings();
             ensureDirectorHud();      
             renderPresetsDropdown();  
+            updateHudTopOffset();
             toggleHudVisibility();
+
+            window.addEventListener('resize', updateHudTopOffset, { passive: true });
         });
 
         eventSource.on(event_types.CHAT_CHANGED, () => {
+            updateHudTopOffset();
             toggleHudVisibility(); 
         });
 
