@@ -24,18 +24,18 @@
 
 /* КНОПКА ОТКРЫТИЯ */
 #bb-director-toggle {
-    position: absolute; right: -42px; top: 30%; 
-    background: rgba(20, 20, 25, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1); border-left: none;
-    color: #c084fc; padding: 15px 10px; border-radius: 0 10px 10px 0; cursor: pointer;
-    box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+    position: absolute; right: -50px; top: 30%;
+    background: linear-gradient(180deg, rgba(21, 33, 58, 0.95), rgba(9, 15, 30, 0.95));
+    border: 1px solid rgba(125, 163, 255, 0.28); border-left: none;
+    color: #b993ff; padding: 14px 11px; border-radius: 0 14px 14px 0; cursor: pointer;
+    box-shadow: 7px 0 18px rgba(0,0,0,0.45);
     display: flex; flex-direction: column; align-items: center; gap: 5px;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.22s, color 0.22s, transform 0.22s;
 }
-#bb-director-toggle:hover { background: rgba(40, 40, 50, 0.95); color: #fff; }
+#bb-director-toggle:hover { background: rgba(45, 55, 88, 0.95); color: #fff; transform: translateX(-2px); }
 
 .bb-dir-title {
-    font-size: 48px;
+    font-size: 30px;
     font-weight: 900;
     color: #f1f5ff;
     letter-spacing: 1px;
@@ -62,11 +62,73 @@
     border: 1px solid rgba(125, 163, 255, 0.35);
 }
 
+.bb-dir-title-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.bb-dir-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    border: 1px solid rgba(192, 132, 252, 0.44);
+    background: rgba(124, 58, 237, 0.16);
+    color: #f0d9ff;
+    font-size: 10px;
+    letter-spacing: 0.9px;
+    font-weight: 700;
+}
+
+.bb-dir-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f0a9ff;
+    box-shadow: 0 0 0 0 rgba(240, 169, 255, 0.45);
+    animation: bbPulse 2.2s ease-out infinite;
+}
+
+@keyframes bbPulse {
+    0% { box-shadow: 0 0 0 0 rgba(240, 169, 255, 0.45); opacity: 0.9; }
+    70% { box-shadow: 0 0 0 9px rgba(240, 169, 255, 0); opacity: 1; }
+    100% { box-shadow: 0 0 0 0 rgba(240, 169, 255, 0); opacity: 0.9; }
+}
+
+.bb-dir-brand {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.bb-dir-brand-btn {
+    min-height: 50px;
+    border-radius: 14px;
+    border: 1px solid rgba(125, 163, 255, 0.38);
+    background: linear-gradient(180deg, rgba(22, 34, 62, 0.88), rgba(10, 17, 32, 0.88));
+    color: #dfe8ff;
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.bb-dir-brand-btn.is-active {
+    border-color: rgba(187, 140, 255, 0.65);
+    color: #f4deff;
+    text-shadow: 0 0 8px rgba(192, 132, 252, 0.4);
+}
+
 .bb-dir-subtitle {
-    margin-top: 6px;
+    margin-top: 2px;
     color: #8fa3c7;
-    font-size: 12px;
-    letter-spacing: 1.7px;
+    font-size: 11px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
 }
 
@@ -120,8 +182,9 @@
 #bb-director-hud select#bb-dir-preset-select {
     border-radius: 12px;
     border: 1px solid rgba(118, 151, 242, 0.32);
-    background: rgba(7, 14, 31, 0.85);
+    background: rgba(16, 24, 44, 0.95);
     color: #e5ecff;
+    min-height: 36px;
 }
 
 .bb-dir-top-controls,
@@ -132,6 +195,40 @@
 .bb-dir-preset-actions .menu_button,
 .bb-dir-footer-actions .menu_button {
     min-height: 38px;
+}
+
+#bb-dir-stealth-btn {
+    font-size: 12px;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+}
+
+.bb-dir-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.bb-dir-metric {
+    border-radius: 10px;
+    border: 1px solid rgba(118, 151, 242, 0.2);
+    background: rgba(8, 14, 27, 0.65);
+    padding: 7px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.bb-dir-metric span {
+    color: #8da0c3;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.bb-dir-metric b {
+    color: #e6eeff;
+    font-size: 14px;
 }
 
 /* СЛАЙДЕР */
@@ -188,5 +285,9 @@
 
     .bb-dir-card:hover {
         transform: none;
+    }
+
+    .bb-dir-status-dot {
+        animation: none;
     }
 }

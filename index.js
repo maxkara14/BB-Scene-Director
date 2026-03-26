@@ -64,6 +64,14 @@ function getDirectorPromptText() {
     return prompt;
 }
 
+function getIntensityLabel(value) {
+    if (value === 0) return "OFF";
+    if (value <= 30) return "LOW";
+    if (value <= 65) return "MID";
+    if (value <= 85) return "HIGH";
+    return "MAX";
+}
+
 window['bbGetSceneDirectorPrompt'] = getDirectorPromptText;
 
 // === ИНЪЕКЦИЯ ПРОМПТА ===
@@ -153,6 +161,16 @@ function renderDirectorHud() {
                     <input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${d.value}">
                     <span class="bb-dir-val-display" style="font-weight:900; color:#fff; width:40px; text-align:right;">${d.value}%</span>
                 </div>
+                <div class="bb-dir-metrics">
+                    <div class="bb-dir-metric">
+                        <span>Уровень</span>
+                        <b>${d.value}%</b>
+                    </div>
+                    <div class="bb-dir-metric">
+                        <span>Режим</span>
+                        <b>${getIntensityLabel(d.value)}</b>
+                    </div>
+                </div>
             </div>
         `;
         htmlChunks.push(html);
@@ -223,9 +241,15 @@ function ensureDirectorHud() {
                 <i class="fa-solid fa-chevron-right" id="bb-dir-arrow" style="font-size: 10px; margin-top: 5px;"></i>
             </div>
             <div class="bb-dir-title-wrap">
-                <div class="bb-dir-badge">VISUAL NOVEL ENGINE</div>
-                <div class="bb-dir-title">VNE</div>
-                <div class="bb-dir-subtitle">СВЯЗИ · СИСТЕМА · ДНЕВНИК</div>
+                <div class="bb-dir-title-top">
+                    <div class="bb-dir-badge">SCENE DIRECTOR</div>
+                    <div class="bb-dir-status-pill"><span class="bb-dir-status-dot"></span>АКТИВНО</div>
+                </div>
+                <div class="bb-dir-brand">
+                    <button type="button" class="bb-dir-brand-btn is-active">S</button>
+                    <button type="button" class="bb-dir-brand-btn is-active">D</button>
+                </div>
+                <div class="bb-dir-subtitle">СТИЛЬ · ТОН · ДИНАМИКА</div>
             </div>
             
             <div class="bb-dir-top-controls" style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 8px;">
