@@ -235,11 +235,11 @@ function ensureDirectorHud() {
     if (document.getElementById('bb-director-hud')) return;
 
     const hudHtml = `
+        <div id="bb-director-toggle" title="Режиссёр Сцены (Стиль игры)">
+            <i class="fa-solid fa-clapperboard"></i>
+            <i class="fa-solid fa-chevron-right" id="bb-dir-arrow" style="font-size: 10px; margin-top: 5px;"></i>
+        </div>
         <div id="bb-director-hud">
-            <div id="bb-director-toggle" title="Режиссёр Сцены (Стиль игры)">
-                <i class="fa-solid fa-clapperboard"></i>
-                <i class="fa-solid fa-chevron-right" id="bb-dir-arrow" style="font-size: 10px; margin-top: 5px;"></i>
-            </div>
             <div class="bb-dir-title-wrap">
                 <div class="bb-dir-title-top">
                     <div class="bb-dir-badge">SCENE DIRECTOR</div>
@@ -285,10 +285,13 @@ function ensureDirectorHud() {
 
     $('#bb-director-toggle').on('click', function() {
         const hud = $('#bb-director-hud');
+        const toggle = $('#bb-director-toggle');
         hud.toggleClass('open');
         if (hud.hasClass('open')) {
+            toggle.addClass('is-open');
             $('#bb-dir-arrow').removeClass('fa-chevron-right').addClass('fa-chevron-left');
         } else {
+            toggle.removeClass('is-open');
             $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
         }
     });
@@ -496,6 +499,7 @@ function toggleHudVisibility() {
         toggleBtn.hide(); 
         if (hud.hasClass('open')) {
             hud.removeClass('open');
+            toggleBtn.removeClass('is-open');
             $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
         }
     }
