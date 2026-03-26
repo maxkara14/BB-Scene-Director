@@ -51,6 +51,9 @@
     padding: 24px 20px 16px;
     border-bottom: 1px solid rgba(125, 163, 255, 0.2);
     background: linear-gradient(180deg, rgba(15, 26, 52, 0.45), rgba(8, 14, 31, 0.1));
+    display: grid;
+    grid-template-rows: auto auto auto;
+    row-gap: 4px;
 }
 
 .bb-dir-badge {
@@ -72,7 +75,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 2px;
 }
 
 .bb-dir-status-pill {
@@ -87,6 +90,7 @@
     font-size: 10px;
     letter-spacing: 0.9px;
     font-weight: 700;
+    transform: translateY(1px);
 }
 
 .bb-dir-status-dot {
@@ -105,7 +109,8 @@
 }
 
 .bb-dir-brand-text {
-    margin-bottom: 8px;
+    margin-top: -2px;
+    margin-bottom: 4px;
     color: #f4f8ff;
     font-size: 46px;
     line-height: 0.95;
