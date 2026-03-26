@@ -222,11 +222,15 @@ function ensureDirectorHud() {
                 <i class="fa-solid fa-clapperboard"></i>
                 <i class="fa-solid fa-chevron-right" id="bb-dir-arrow" style="font-size: 10px; margin-top: 5px;"></i>
             </div>
-            <div class="bb-dir-title">🎬 Режиссёр Сцены</div>
+            <div class="bb-dir-title-wrap">
+                <div class="bb-dir-badge">VISUAL NOVEL ENGINE</div>
+                <div class="bb-dir-title">VNE</div>
+                <div class="bb-dir-subtitle">СВЯЗИ · СИСТЕМА · ДНЕВНИК</div>
+            </div>
             
-            <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 8px;">
+            <div class="bb-dir-top-controls" style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 8px;">
                 <select id="bb-dir-preset-select" class="text_pole" style="width: 100%; padding: 5px; font-size: 12px;"></select>
-                <div style="display: flex; gap: 5px; width: 100%;">
+                <div class="bb-dir-preset-actions" style="display: flex; gap: 5px; width: 100%;">
                     <button id="bb-dir-load-preset" class="menu_button interactable" title="Загрузить пресет" style="flex: 1; padding: 5px;"><i class="fa-solid fa-download"></i></button>
                     <button id="bb-dir-update-preset" class="menu_button interactable" title="Перезаписать текущий" style="flex: 1; padding: 5px;"><i class="fa-solid fa-floppy-disk"></i></button>
                     <button id="bb-dir-save-new-preset" class="menu_button interactable" title="Сохранить как новый" style="flex: 1; padding: 5px;"><i class="fa-solid fa-file-circle-plus"></i></button>
@@ -237,8 +241,8 @@ function ensureDirectorHud() {
             
             <div id="bb-dir-list"></div>
             
-            <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div class="bb-dir-footer" style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div class="bb-dir-footer-actions" style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <button id="bb-dir-add-btn" class="menu_button interactable" style="flex: 1; padding: 8px;">
                         <i class="fa-solid fa-plus"></i>&nbsp; Добавить
                     </button>
