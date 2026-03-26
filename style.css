@@ -35,7 +35,7 @@
 #bb-director-toggle {
     position: fixed;
     left: 0;
-    top: calc(var(--bb-dir-offset-top, 0px) + 38vh);
+    top: calc(var(--bb-dir-offset-top, 0px) + 165px);
     background: linear-gradient(180deg, rgba(21, 33, 58, 0.95), rgba(9, 15, 30, 0.95));
     border: 1px solid rgba(125, 163, 255, 0.28);
     border-left: none;
@@ -43,13 +43,14 @@
     width: var(--bb-dir-tab-width);
     box-shadow: 7px 0 18px rgba(0,0,0,0.45);
     display: flex; flex-direction: column; align-items: center; gap: 5px;
-    transition: background 0.22s, color 0.22s, left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(0);
+    transition: background 0.22s, color 0.22s, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1501;
 }
 #bb-director-toggle:hover { background: rgba(45, 55, 88, 0.95); color: #fff; }
 
 #bb-director-toggle.is-open {
-    left: min(var(--bb-dir-panel-width), 100vw);
+    transform: translateX(min(var(--bb-dir-panel-width), 100vw));
 }
 
 .bb-dir-title {
@@ -256,6 +257,10 @@
     #bb-director-hud {
         width: min(100vw, var(--bb-dir-panel-width));
         padding-top: calc(env(safe-area-inset-top) + 10px);
+    }
+
+    #bb-director-toggle {
+        top: calc(var(--bb-dir-offset-top, 0px) + 148px);
     }
 
     .bb-dir-title-wrap {
