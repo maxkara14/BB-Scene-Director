@@ -221,6 +221,7 @@ export function createSceneDirectorUiController({
 
     function renderMasterControls() {
         const master = getSettings().masterPreset;
+        const availability = masterWorkflow.getGenerationAvailability();
         const urlInput = $('#bb-dir-master-url');
         const apiInput = $('#bb-dir-master-api');
         const status = $('#bb-dir-master-status');
@@ -244,6 +245,8 @@ export function createSceneDirectorUiController({
                 status.addClass('is-busy').text('Проверяю подключение и список моделей...');
             } else if (state.masterGenerating) {
                 status.addClass('is-busy').text('Собираю пресет...');
+            } else if (master.statusLevel === 'idle' && availability.mode === 'main' && availability.model) {
+                status.addClass('is-idle').text(`Кастомное подключение не задано. Для генерации будет использована основная модель: ${availability.model}.`);
             } else {
                 const statusClass = master.statusLevel === 'success'
                     ? 'is-success'
@@ -297,12 +300,9 @@ export function createSceneDirectorUiController({
         }
 
         if (generateButton.length) {
-            const hasConnectedModels = Array.isArray(master.availableModels) && master.availableModels.length > 0;
             const canGenerate = !state.masterChecking
                 && !state.masterGenerating
-                && Boolean(normalizeBaseUrl(master.url))
-                && Boolean(String(master.model || '').trim())
-                && hasConnectedModels;
+                && availability.available;
 
             generateButton.prop('disabled', !canGenerate);
         }

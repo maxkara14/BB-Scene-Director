@@ -1,5 +1,5 @@
 import { getRequestHeaders } from '../../../../script.js';
-import { chat_completion_sources } from '../../../openai.js';
+import { chat_completion_sources, getChatCompletionModel, oai_settings } from '../../../openai.js';
 
 export function buildCustomHeadersYaml(apiKey) {
     const trimmed = String(apiKey || '').trim();
@@ -78,15 +78,63 @@ export function getMasterConnectionDetails(master, normalizeBaseUrl) {
     const url = normalizeBaseUrl(master?.url);
     const model = String(master?.model || '').trim();
 
-    if (!url) {
-        throw new Error('Укажи URL подключения.');
+    if (url && model) {
+        return {
+            mode: 'custom',
+            url,
+            apiKey: String(master?.apiKey || ''),
+            model,
+        };
+    }
+
+    const mainConnection = tryGetMainMasterConnection(normalizeBaseUrl);
+    if (mainConnection) {
+        return mainConnection;
+    }
+
+    if (url && !model) {
+        throw new Error('Выбери модель для кастомного подключения или используй основное подключение SillyTavern.');
+    }
+
+    throw new Error('Укажи URL подключения или настрой основную chat completion модель в SillyTavern.');
+}
+
+export function getMainMasterConnection(normalizeBaseUrl) {
+    const source = String(oai_settings.chat_completion_source || '').trim();
+    const model = String(getChatCompletionModel(oai_settings) || '').trim();
+
+    if (!source) {
+        throw new Error('Основное подключение SillyTavern не настроено.');
+    }
+
+    if (!model) {
+        throw new Error('В основном подключении SillyTavern не выбрана chat completion модель.');
+    }
+
+    if (source === chat_completion_sources.CUSTOM && !normalizeBaseUrl(oai_settings.custom_url)) {
+        throw new Error('В основном подключении SillyTavern не заполнен custom URL.');
     }
 
     return {
-        url,
-        apiKey: String(master?.apiKey || ''),
+        mode: 'main',
+        source,
         model,
+        custom_url: normalizeBaseUrl(oai_settings.custom_url),
+        vertexai_region: String(oai_settings.vertexai_region || '').trim(),
+        zai_endpoint: String(oai_settings.zai_endpoint || '').trim(),
+        siliconflow_endpoint: String(oai_settings.siliconflow_endpoint || '').trim(),
+        reverse_proxy: String(oai_settings.reverse_proxy || '').trim(),
+        proxy_password: String(oai_settings.proxy_password || '').trim(),
+        custom_prompt_post_processing: String(oai_settings.custom_prompt_post_processing || '').trim(),
     };
+}
+
+export function tryGetMainMasterConnection(normalizeBaseUrl) {
+    try {
+        return getMainMasterConnection(normalizeBaseUrl);
+    } catch {
+        return null;
+    }
 }
 
 export async function fetchMasterModelsDirect(url, apiKey, signal = undefined) {
@@ -261,6 +309,34 @@ export async function requestMasterPresetViaBackend({
 
     const response = await context.ChatCompletionService.processRequest(requestPayload, {}, true, signal);
 
+    return response?.content ?? response;
+}
+
+export async function requestMasterPresetViaMainConnection({
+    context,
+    connection,
+    messages,
+    maxTokens,
+    temperature,
+    signal,
+}) {
+    const requestPayload = {
+        stream: false,
+        messages,
+        model: connection.model,
+        chat_completion_source: connection.source,
+        max_tokens: maxTokens,
+        temperature,
+        custom_url: connection.custom_url || undefined,
+        vertexai_region: connection.vertexai_region || undefined,
+        zai_endpoint: connection.zai_endpoint || undefined,
+        siliconflow_endpoint: connection.siliconflow_endpoint || undefined,
+        reverse_proxy: connection.reverse_proxy || undefined,
+        proxy_password: connection.proxy_password || undefined,
+        custom_prompt_post_processing: connection.custom_prompt_post_processing || undefined,
+    };
+
+    const response = await context.ChatCompletionService.processRequest(requestPayload, {}, true, signal);
     return response?.content ?? response;
 }
 

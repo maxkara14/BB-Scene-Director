@@ -6,7 +6,9 @@ import {
     getMasterConnectionDetails,
     isAbortLikeError,
     requestMasterPresetDirect,
+    requestMasterPresetViaMainConnection,
     shouldRetryMasterGeneration,
+    tryGetMainMasterConnection,
 } from './master-connection.js';
 
 export function createMasterWorkflow({
@@ -40,6 +42,23 @@ export function createMasterWorkflow({
         return getMasterConnectionDetails(getMasterSettings(), normalizeBaseUrl);
     }
 
+    function getGenerationAvailability() {
+        try {
+            const connection = resolveMasterConnection();
+            return {
+                available: Boolean(String(connection?.model || '').trim()),
+                mode: connection?.mode || null,
+                model: String(connection?.model || '').trim(),
+            };
+        } catch {
+            return {
+                available: false,
+                mode: null,
+                model: '',
+            };
+        }
+    }
+
     function getStructuredMasterGenerationSettings(master) {
         return {
             maxTokens: Math.max(Number(master?.maxTokens) || DEFAULT_MASTER_MAX_TOKENS, MASTER_STRUCTURED_MIN_TOKENS),
@@ -67,6 +86,15 @@ export function createMasterWorkflow({
         renderMasterControls();
 
         try {
+            if (connection.mode === 'main') {
+                master.statusLevel = 'success';
+                master.statusText = `Кастомное подключение не задано. Для генерации используется основная модель: ${connection.model}.`;
+                saveSettingsDebounced();
+                renderMasterControls();
+                notify('success', 'Будет использовано основное подключение SillyTavern.');
+                return;
+            }
+
             let modelIds = [];
             try {
                 modelIds = await fetchMasterModelsDirect(connection.url, connection.apiKey, controller.signal);
@@ -163,15 +191,50 @@ export function createMasterWorkflow({
             const structuredSettings = getStructuredMasterGenerationSettings(master);
 
             for (let attempt = 1; attempt <= MASTER_GENERATION_MAX_ATTEMPTS; attempt++) {
-                const rawResponse = await requestMasterPresetDirect({
-                    url: connection.url,
-                    apiKey: connection.apiKey,
-                    model: connection.model,
-                    messages,
-                    maxTokens: structuredSettings.maxTokens,
-                    temperature: structuredSettings.temperature,
-                    signal: controller.signal,
-                });
+                let rawResponse;
+                try {
+                    rawResponse = connection.mode === 'custom'
+                        ? await requestMasterPresetDirect({
+                            url: connection.url,
+                            apiKey: connection.apiKey,
+                            model: connection.model,
+                            messages,
+                            maxTokens: structuredSettings.maxTokens,
+                            temperature: structuredSettings.temperature,
+                            signal: controller.signal,
+                        })
+                        : await requestMasterPresetViaMainConnection({
+                            context,
+                            connection,
+                            messages,
+                            maxTokens: structuredSettings.maxTokens,
+                            temperature: structuredSettings.temperature,
+                            signal: controller.signal,
+                        });
+                } catch (error) {
+                    if (isAbortLikeError(error)) {
+                        throw error;
+                    }
+
+                    const mainFallback = connection.mode === 'custom'
+                        ? tryGetMainMasterConnection(normalizeBaseUrl)
+                        : null;
+
+                    if (!mainFallback) {
+                        throw error;
+                    }
+
+                    console.warn('[BB Scene Director] Custom master connection failed, falling back to the main SillyTavern connection.', error);
+                    connection = mainFallback;
+                    rawResponse = await requestMasterPresetViaMainConnection({
+                        context,
+                        connection,
+                        messages,
+                        maxTokens: structuredSettings.maxTokens,
+                        temperature: structuredSettings.temperature,
+                        signal: controller.signal,
+                    });
+                }
                 lastRawMasterResponse = rawResponse;
 
                 try {
@@ -219,7 +282,9 @@ export function createMasterWorkflow({
 
             master.lastPresetName = generatedPresetEntry.preset.name;
             master.statusLevel = 'success';
-            master.statusText = `Подключено. Активная модель: ${connection.model}.`;
+            master.statusText = connection.mode === 'main'
+                ? `Используется основная модель SillyTavern: ${connection.model}.`
+                : `Подключено. Активная модель: ${connection.model}.`;
             saveSettingsDebounced();
 
             renderPresetsDropdown();
@@ -261,6 +326,7 @@ export function createMasterWorkflow({
     }
 
     return {
+        getGenerationAvailability,
         checkMasterConnection,
         generateMasterPreset,
     };
