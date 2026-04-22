@@ -34,11 +34,11 @@ import { createSceneDirectorUiController } from './director-ui.js';
 
 const MODULE_NAME = 'BB-Scene-Director';
 const SCHEMA_VERSION = 7;
-const DEFAULT_MASTER_MAX_TOKENS = 1200;
+const DEFAULT_MASTER_MAX_TOKENS = 5000;
 const DEFAULT_MASTER_TEMPERATURE = 0.35;
 const MASTER_REQUEST_TIMEOUT_MS = 90000;
 const MASTER_STATUS_TIMEOUT_MS = 30000;
-const MASTER_STRUCTURED_MIN_TOKENS = 2200;
+const MASTER_STRUCTURED_MIN_TOKENS = 5000;
 const MASTER_STRUCTURED_MIN_TEMPERATURE = 0.45;
 const MASTER_MIN_DIRECTIVE_COUNT = 5;
 const MASTER_MIN_CATEGORY_COUNT = 3;
@@ -392,7 +392,7 @@ function normalizeMasterPreset(raw) {
             ? master.statusText
             : defaults.statusText,
         lastPresetName: typeof master.lastPresetName === 'string' ? master.lastPresetName : '',
-        maxTokens: clamp(Math.round(Number(master.maxTokens) || defaults.maxTokens), 120, 4000),
+        maxTokens: clamp(Math.round(Number(master.maxTokens) || defaults.maxTokens), 120, 8000),
         temperature: clamp(Number((Number(master.temperature) || defaults.temperature).toFixed(2)), 0, 2),
     };
 }
