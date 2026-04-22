@@ -8,6 +8,14 @@ import {
 } from '../../../../script.js';
 import { extension_settings } from '../../../extensions.js';
 import { chat_completion_sources } from '../../../openai.js';
+import {
+    PRESET_FILE_FORMAT,
+    PRESET_FILE_VERSION,
+    createPresetFilePayload,
+    parsePresetImportText,
+    sanitizePresetFilename,
+    stringifyPresetFile,
+} from './preset-storage.js';
 
 const MODULE_NAME = 'BB-Scene-Director';
 const SCHEMA_VERSION = 7;
@@ -606,7 +614,7 @@ function createPresetItemFromDirective(directive) {
     };
 }
 
-function normalizePresetItem(raw, directivesByName = new Map()) {
+function normalizePresetItem(raw, directivesByName = new Map(), categories = getCategories()) {
     if (!raw || typeof raw !== 'object') {
         return null;
     }
@@ -622,7 +630,7 @@ function normalizePresetItem(raw, directivesByName = new Map()) {
     return {
         directiveId: directiveId ? String(directiveId) : '',
         name,
-        category: normalizeCategoryId(raw.category || directiveByName?.category || guessDirectiveCategory(name)),
+        category: normalizeCategoryId(raw.category || directiveByName?.category || guessDirectiveCategory(name), categories),
         value: snapDirectiveValue(raw.value),
         active: raw.active !== false,
     };
@@ -665,9 +673,11 @@ function normalizePreset(rawPreset, directives) {
         sourceItems = rawPreset.directives;
     }
 
+    const sourceCategories = normalizeCategories(rawPreset.categories, sourceItems, []);
+
     const items = dedupePresetItems(
         sourceItems
-            .map((item) => normalizePresetItem(item, directivesByName))
+            .map((item) => normalizePresetItem(item, directivesByName, sourceCategories))
             .filter(Boolean),
     );
 
@@ -675,7 +685,11 @@ function normalizePreset(rawPreset, directives) {
         id: String(rawPreset.id || makeId('preset')),
         name: String(rawPreset.name || 'Без названия').trim() || 'Без названия',
         items,
-        categories: normalizeCategories(rawPreset.categories, items, []),
+        categories: normalizeCategories(sourceCategories, items, []),
+        storage: {
+            format: typeof rawPreset?.storage?.format === 'string' ? rawPreset.storage.format : PRESET_FILE_FORMAT,
+            version: Number.isInteger(rawPreset?.storage?.version) ? rawPreset.storage.version : PRESET_FILE_VERSION,
+        },
         meta: rawPreset.meta && typeof rawPreset.meta === 'object'
             ? {
                 generated: Boolean(rawPreset.meta.generated),
@@ -996,17 +1010,151 @@ function getUniquePresetName(baseName, presets = getSettings().presets) {
     return `${trimmedBase} (${counter})`;
 }
 
+function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
 function createPresetRecord(name, items, meta = {}) {
     return {
         id: makeId('preset'),
         name: String(name || '').trim() || 'Без названия',
         items: dedupePresetItems(items.map((item) => normalizePresetItem(item)).filter(Boolean)),
         categories: normalizeCategories(meta.categories || getCategories(), items, []),
+        storage: {
+            format: PRESET_FILE_FORMAT,
+            version: PRESET_FILE_VERSION,
+        },
         meta: {
             generated: Boolean(meta.generated),
             summary: String(meta.summary || ''),
         },
     };
+}
+
+function getCurrentDraftPresetSnapshot() {
+    const items = captureCurrentPresetItems();
+    if (!items.length) {
+        return null;
+    }
+
+    return createPresetRecord('Черновик Scene Director', items, {
+        generated: false,
+        categories: getCategories(),
+    });
+}
+
+function getExportPresetSnapshot() {
+    const selectedIndex = getSelectedPresetIndex();
+    if (selectedIndex !== null) {
+        const preset = getSettings().presets[selectedIndex];
+        if (preset) {
+            return cloneJson(preset);
+        }
+    }
+
+    return getCurrentDraftPresetSnapshot();
+}
+
+function downloadTextFile(filename, content, mimeType = 'application/json;charset=utf-8') {
+    const blob = new Blob([content], { type: mimeType });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+function createImportFileInput() {
+    const existing = document.getElementById('bb-dir-import-file');
+    if (existing instanceof HTMLInputElement) {
+        return existing;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'bb-dir-import-file';
+    input.accept = '.json,application/json';
+    input.hidden = true;
+    document.body.append(input);
+    return input;
+}
+
+async function handleExportPreset() {
+    const preset = getExportPresetSnapshot();
+    if (!preset) {
+        notify('warning', 'Сначала создай или выбери пресет для экспорта.');
+        return;
+    }
+
+    const content = stringifyPresetFile(preset);
+    const filename = `${sanitizePresetFilename(preset.name)}.json`;
+    downloadTextFile(filename, content);
+    notify('success', `Пресет "${preset.name}" экспортирован в JSON.`);
+}
+
+function importRawPresets(rawPresets) {
+    const importedPresets = [];
+
+    rawPresets.forEach((rawPreset) => {
+        const normalized = normalizePreset(rawPreset, getSettings().directives);
+        if (!normalized) {
+            return;
+        }
+
+        normalized.id = makeId('preset');
+        normalized.name = getUniquePresetName(normalized.name);
+        normalized.categories = normalizeCategories(normalized.categories, normalized.items, []);
+        normalized.storage = {
+            format: PRESET_FILE_FORMAT,
+            version: PRESET_FILE_VERSION,
+        };
+        getSettings().presets.push(normalized);
+        importedPresets.push(normalized);
+    });
+
+    return importedPresets;
+}
+
+async function handleImportPresetFile(file) {
+    if (!file) {
+        return;
+    }
+
+    let parsed;
+    try {
+        parsed = parsePresetImportText(await file.text());
+    } catch (error) {
+        notify('error', `Не удалось прочитать JSON: ${error.message || error}`);
+        return;
+    }
+
+    if (!parsed.presets.length) {
+        notify('warning', 'В файле не найдено пригодных пресетов Scene Director.');
+        return;
+    }
+
+    const imported = importRawPresets(parsed.presets);
+    if (!imported.length) {
+        notify('warning', 'Импорт завершился, но ни один пресет не удалось преобразовать.');
+        return;
+    }
+
+    saveSettingsDebounced();
+    renderPresetsDropdown();
+
+    if (imported.length === 1) {
+        const importedIndex = getSettings().presets.findIndex((preset) => preset.id === imported[0].id);
+        if (importedIndex !== -1) {
+            $('#bb-dir-preset-select').val(String(importedIndex));
+        }
+        notify('success', `Импортирован пресет "${imported[0].name}".`);
+        return;
+    }
+
+    notify('success', `Импортировано пресетов: ${imported.length}.`);
 }
 
 function migrateLegacyCurrentDraft(settings) {
@@ -1142,7 +1290,7 @@ async function handleUpdatePreset(button) {
     }
 
     const confirmed = await confirmAction(
-        `Перезаписать пресет "${preset.name}" текущими активными директивами?`,
+        `Перезаписать пресет "${preset.name}" текущим деревом категорий и директив?`,
         { okButton: 'Перезаписать', cancelButton: 'Отмена' },
     );
 
@@ -1169,7 +1317,7 @@ async function handleSaveNewPreset() {
 
     const items = captureCurrentPresetItems();
     if (!items.length) {
-        notify('warning', 'Включи хотя бы одну директиву перед сохранением.');
+        notify('warning', 'Сначала добавь хотя бы одну директиву в текущий черновик.');
         return;
     }
 
@@ -3238,6 +3386,14 @@ function ensureDirectorHud() {
                         <button id="bb-dir-rename-preset" class="bb-dir-btn interactable" title="Переименовать"><i class="fa-solid fa-pen"></i></button>
                         <button id="bb-dir-del-preset" class="bb-dir-btn interactable bb-dir-danger" title="Удалить"><i class="fa-solid fa-trash"></i></button>
                     </div>
+                    <div class="bb-dir-preset-io">
+                        <button id="bb-dir-import-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Импортировать JSON-пресет">
+                            <i class="fa-solid fa-file-import"></i><span>Импорт JSON</span>
+                        </button>
+                        <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать пресет в JSON">
+                            <i class="fa-solid fa-file-export"></i><span>Экспорт JSON</span>
+                        </button>
+                    </div>
                     <div class="bb-dir-master-actions">
                         <button id="bb-dir-master-generate" class="bb-dir-btn interactable bb-dir-with-icon">
                             <i class="fa-solid fa-wand-magic-sparkles"></i><span>Собрать пресет</span>
@@ -3422,6 +3578,20 @@ function ensureDirectorHud() {
     });
     $('#bb-dir-del-preset').on('click', function onDeletePresetClick() {
         void handleDeletePreset();
+    });
+    $('#bb-dir-export-json').on('click', function onExportPresetClick() {
+        void handleExportPreset();
+    });
+    $('#bb-dir-import-json').on('click', function onImportPresetClick() {
+        const input = createImportFileInput();
+        input.value = '';
+        input.click();
+    });
+
+    createImportFileInput().addEventListener('change', (event) => {
+        const target = event.target;
+        const file = target instanceof HTMLInputElement ? target.files?.[0] : null;
+        void handleImportPresetFile(file);
     });
 
     $('#bb-dir-stealth-btn').on('click', function onStealthClick() {

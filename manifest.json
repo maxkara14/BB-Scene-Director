@@ -1,8 +1,8 @@
 {
     "name": "BB-Scene-Director",
     "display_name": "BB Scene Director",
-    "description": "Секции фокуса, динамики и сюжета с компактным управлением и отдельным мастер-пресетом.",
-    "version": "1.1.1",
+    "description": "Секции сцены с древовидными категориями, отдельным мастер-пресетом и JSON-импортом/экспортом пресетов.",
+    "version": "1.2.0",
     "author": "BruniikBron",
     "js": "index.js",
     "css": "style.css",
