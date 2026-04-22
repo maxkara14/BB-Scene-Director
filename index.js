@@ -3276,7 +3276,7 @@ function setupExtensionSettings() {
     const settingsHtml = `
         <div id="bb-director-settings-wrapper" class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header">
-                <b>BB Scene Director</b>
+                <b>🎥 BB Scene Director</b>
                 <div class="inline-drawer-icon fa-solid fa-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content bb-dir-settings-panel">
