@@ -1489,7 +1489,7 @@ function renderPreviewToggleState() {
     const previewWrap = $('#bb-dir-preview-wrap');
     const isExpanded = Boolean(settings.previewExpanded);
     const icon = isExpanded ? 'fa-eye-slash' : 'fa-eye';
-    const label = isExpanded ? 'Скрыть инструкцию' : 'Показать инструкцию';
+    const label = isExpanded ? 'Скрыть промпт' : 'Показать промпт';
 
     if (toggleButton.length) {
         toggleButton.toggleClass('is-active', isExpanded);
@@ -3285,7 +3285,7 @@ function setupExtensionSettings() {
                     <span>Использовать макрос <code>{{bb_scene}}</code> вместо авто-вставки</span>
                 </label>
                 <div class="bb-dir-settings-note">
-                    Если включить опцию, расширение перестанет само вставлять инструкцию в чат и будет только разворачивать <code>{{bb_scene}}</code> там, где ты его используешь вручную.
+                    Если включить опцию, расширение перестанет само вставлять промпт в чат и будет только разворачивать <code>{{bb_scene}}</code> там, где ты его используешь вручную.
                 </div>
                 <div class="bb-dir-settings-master">
                     <div class="bb-dir-block-title">Подключение генератора пресета</div>
@@ -3370,9 +3370,9 @@ function ensureDirectorHud() {
         </div>
         <aside id="bb-director-hud">
             <div class="bb-dir-head">
-                <div class="bb-dir-kicker">BB Scene Director</div>
-                <div class="bb-dir-title">Scene Director</div>
-                <div class="bb-dir-subtitle">Компактная режиссура сцены: фокус, динамика, сюжет и акценты</div>
+                <div class="bb-dir-kicker">Scene Director</div>
+                <div class="bb-dir-title">SD</div>
+                <div class="bb-dir-subtitle">Настройка пресета ролевой игры</div>
             </div>
 
             <div class="bb-dir-toolbar">
@@ -3408,10 +3408,10 @@ function ensureDirectorHud() {
                 <div class="bb-dir-footer-actions">
                     <button id="bb-dir-add-btn" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-folder-plus"></i><span>Добавить категорию</span></button>
                     <button id="bb-dir-stealth-btn" class="bb-dir-btn interactable bb-dir-with-icon" title="Скрывать неактивные"><i class="fa-solid fa-eye-slash"></i><span>Скрыть неактивные</span></button>
-                    <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать инструкцию</span></button>
+                    <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать промпт</span></button>
                 </div>
                 <div id="bb-dir-preview-wrap" class="bb-dir-preview-wrap" hidden>
-                    <div class="bb-dir-block-title">Текущая инструкция</div>
+                    <div class="bb-dir-block-title">Текущий промпт</div>
                     <div id="bb-dir-preview-text"></div>
                 </div>
             </div>
