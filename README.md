@@ -79,4 +79,4 @@ Scene Director поддерживает полноценный обмен пре
 - [Telegram](t.me/Brun11kBr0n)
 
 Идея создания расширения родилась при участии дяди Макса ❤️
-- [Maks_Sh](https://t.me/btwiusesillytavern).
+- [Maks_Sh](https://t.me/btwiusesillytavern)
