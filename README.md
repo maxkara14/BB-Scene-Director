@@ -78,4 +78,5 @@ Scene Director поддерживает полноценный обмен пре
 - [BruniikBron: Lo-Fi & Mods](https://maxkara14.github.io/BruniikBron/)
 - [Telegram](t.me/Brun11kBr0n)
 
-Идея мастер-пресета родилась при участии [Maks_Sh](https://makkssh.github.io/).
+Идея создания расширения родилась при участии дяди Макса ❤️
+- [Maks_Sh](https://t.me/btwiusesillytavern).
