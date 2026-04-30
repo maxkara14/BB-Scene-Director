@@ -216,8 +216,14 @@ export function clamp(value, min, max) {
 }
 
 export function snapDirectiveValue(value) {
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) {
+    let numeric = Number(value);
+
+    if (typeof value === 'string') {
+        const match = value.match(/-?\d+(?:[.,]\d+)?/);
+        numeric = match ? Number(match[0].replace(',', '.')) : Number.NaN;
+    }
+
+    if (!Number.isFinite(numeric)) {
         return 50;
     }
 

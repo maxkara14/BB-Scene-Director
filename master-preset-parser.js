@@ -366,6 +366,37 @@ export function createMasterPresetParser({
         };
     }
 
+    function getGeneratedDirectiveFallbackValue(index = 0) {
+        return [65, 70, 75, 80][Math.abs(Number(index) || 0) % 4];
+    }
+
+    function parseGeneratedDirectiveNumericValue(value) {
+        if (typeof value === 'string') {
+            const match = value.match(/-?\d+(?:[.,]\d+)?/);
+            return match ? Number(match[0].replace(',', '.')) : Number.NaN;
+        }
+
+        return Number(value);
+    }
+
+    function prepareGeneratedDirectiveItem(rawItem, index = 0) {
+        if (!rawItem || typeof rawItem !== 'object') {
+            return rawItem;
+        }
+
+        const numeric = parseGeneratedDirectiveNumericValue(rawItem.value);
+        const fallbackValue = getGeneratedDirectiveFallbackValue(index);
+        const shouldReplaceValue = !Number.isFinite(numeric)
+            || numeric <= 0
+            || Math.round(numeric / 5) * 5 === 50;
+
+        return {
+            ...rawItem,
+            value: shouldReplaceValue ? fallbackValue : rawItem.value,
+            active: true,
+        };
+    }
+
     function decodeJsonStringFragment(value) {
         try {
             return JSON.parse(`"${String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
@@ -650,7 +681,7 @@ export function createMasterPresetParser({
 
         const items = dedupePresetItems(
             collectedItems
-                .map((item) => normalizePresetItem(item, getDirectiveMap()))
+                .map((item, index) => normalizePresetItem(prepareGeneratedDirectiveItem(item, index), getDirectiveMap()))
                 .filter(Boolean),
         );
 
@@ -765,7 +796,7 @@ export function createMasterPresetParser({
         const directivesByName = getDirectiveMap();
         const items = dedupePresetItems(
             normalizedPayload.directives
-                .map((item) => normalizePresetItem(item, directivesByName))
+                .map((item, index) => normalizePresetItem(prepareGeneratedDirectiveItem(item, index), directivesByName))
                 .filter(Boolean),
         );
 
@@ -776,7 +807,7 @@ export function createMasterPresetParser({
                     const salvagedPayload = normalizeMasterPresetPayload(salvaged);
                     const salvagedItems = dedupePresetItems(
                         (salvagedPayload?.directives || [])
-                            .map((item) => normalizePresetItem(item, directivesByName))
+                            .map((item, index) => normalizePresetItem(prepareGeneratedDirectiveItem(item, index), directivesByName))
                             .filter(Boolean),
                     );
 
