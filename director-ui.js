@@ -64,6 +64,30 @@ export function createSceneDirectorUiController({
         button.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
     }
 
+    function renderToolbarCollapsedState() {
+        const settings = getSettings();
+        const block = $('#bb-director-hud').find('.bb-dir-toolbar .bb-dir-block');
+        const toggle = $('#bb-dir-toolbar-toggle');
+        const body = $('#bb-dir-toolbar-body');
+        const isCollapsed = Boolean(settings.toolbarCollapsed);
+
+        block.toggleClass('is-collapsed', isCollapsed);
+        toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
+        body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
+    }
+
+    function renderFooterCollapsedState() {
+        const settings = getSettings();
+        const footer = $('#bb-dir-footer');
+        const toggle = $('#bb-dir-footer-toggle');
+        const body = $('#bb-dir-footer-body');
+        const isCollapsed = Boolean(settings.footerCollapsed);
+
+        footer.toggleClass('is-collapsed', isCollapsed);
+        toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
+        body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
+    }
+
     function renderPreviewToggleState() {
         const settings = getSettings();
         const toggleButton = $('#bb-dir-preview-toggle');
@@ -420,43 +444,59 @@ export function createSceneDirectorUiController({
 
                 <div class="bb-dir-toolbar">
                     <div class="bb-dir-block">
-                        <div class="bb-dir-block-title">Пресеты</div>
-                        <select id="bb-dir-preset-select" class="bb-dir-input"></select>
-                        <div class="bb-dir-preset-actions">
-                            <button id="bb-dir-load-preset" class="bb-dir-btn interactable" title="Загрузить"><i class="fa-solid fa-download"></i></button>
-                            <button id="bb-dir-update-preset" class="bb-dir-btn interactable" title="Перезаписать"><i class="fa-solid fa-floppy-disk"></i></button>
-                            <button id="bb-dir-save-new-preset" class="bb-dir-btn interactable" title="Сохранить как новый"><i class="fa-solid fa-file-circle-plus"></i></button>
-                            <button id="bb-dir-rename-preset" class="bb-dir-btn interactable" title="Переименовать"><i class="fa-solid fa-pen"></i></button>
-                            <button id="bb-dir-del-preset" class="bb-dir-btn interactable bb-dir-danger" title="Удалить"><i class="fa-solid fa-trash"></i></button>
-                        </div>
-                        <div class="bb-dir-preset-io">
-                            <button id="bb-dir-import-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Импортировать JSON-пресет">
-                                <i class="fa-solid fa-file-import"></i><span>Импорт JSON</span>
-                            </button>
-                            <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать пресет в JSON">
-                                <i class="fa-solid fa-file-export"></i><span>Экспорт JSON</span>
-                            </button>
-                        </div>
-                        <div class="bb-dir-master-actions">
-                            <button id="bb-dir-master-generate" class="bb-dir-btn interactable bb-dir-with-icon bb-dir-btn-primary">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i><span>Сгенерировать пресет</span>
-                            </button>
+                        <button type="button" id="bb-dir-toolbar-toggle" class="bb-dir-toolbar-toggle" aria-expanded="true" aria-controls="bb-dir-toolbar-body">
+                            <span class="bb-dir-block-title">Пресеты</span>
+                            <span class="bb-dir-toolbar-arrow"><i class="fa-solid fa-chevron-down"></i></span>
+                        </button>
+                        <div id="bb-dir-toolbar-body" class="bb-dir-toolbar-body">
+                            <div class="bb-dir-toolbar-body-inner">
+                                <select id="bb-dir-preset-select" class="bb-dir-input"></select>
+                                <div class="bb-dir-preset-actions">
+                                    <button id="bb-dir-load-preset" class="bb-dir-btn interactable" title="Загрузить"><i class="fa-solid fa-download"></i></button>
+                                    <button id="bb-dir-update-preset" class="bb-dir-btn interactable" title="Перезаписать"><i class="fa-solid fa-floppy-disk"></i></button>
+                                    <button id="bb-dir-save-new-preset" class="bb-dir-btn interactable" title="Сохранить как новый"><i class="fa-solid fa-file-circle-plus"></i></button>
+                                    <button id="bb-dir-rename-preset" class="bb-dir-btn interactable" title="Переименовать"><i class="fa-solid fa-pen"></i></button>
+                                    <button id="bb-dir-del-preset" class="bb-dir-btn interactable bb-dir-danger" title="Удалить"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                                <div class="bb-dir-preset-io">
+                                    <button id="bb-dir-import-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Импортировать JSON-пресет">
+                                        <i class="fa-solid fa-file-import"></i><span>Импорт JSON</span>
+                                    </button>
+                                    <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать пресет в JSON">
+                                        <i class="fa-solid fa-file-export"></i><span>Экспорт JSON</span>
+                                    </button>
+                                </div>
+                                <div class="bb-dir-master-actions">
+                                    <button id="bb-dir-master-generate" class="bb-dir-btn interactable bb-dir-with-icon bb-dir-btn-primary">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i><span>Сгенерировать пресет</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div id="bb-dir-list"></div>
 
-                <div class="bb-dir-footer">
-                    <div class="bb-dir-footer-actions">
-                        <button id="bb-dir-add-btn" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-folder-plus"></i><span>Добавить категорию</span></button>
-                        <button id="bb-dir-stealth-btn" class="bb-dir-btn interactable bb-dir-with-icon" title="Скрывать неактивные"><i class="fa-solid fa-eye-slash"></i><span>Скрыть неактивные</span></button>
-                        <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать промпт</span></button>
-                    </div>
-                    <div id="bb-dir-preview-wrap" class="bb-dir-preview-wrap is-closed" aria-hidden="true">
-                        <div class="bb-dir-preview-inner">
-                            <div class="bb-dir-block-title">Текущий промпт</div>
-                            <div id="bb-dir-preview-text"></div>
+                <div class="bb-dir-footer" id="bb-dir-footer">
+                    <button type="button" id="bb-dir-footer-toggle" class="bb-dir-footer-toggle" aria-expanded="true" aria-controls="bb-dir-footer-body">
+                        <span class="bb-dir-footer-handle"></span>
+                        <span class="bb-dir-footer-toggle-label">Действия</span>
+                        <span class="bb-dir-footer-arrow"><i class="fa-solid fa-chevron-down"></i></span>
+                    </button>
+                    <div id="bb-dir-footer-body" class="bb-dir-footer-body">
+                        <div class="bb-dir-footer-body-inner">
+                            <div class="bb-dir-footer-actions">
+                                <button id="bb-dir-add-btn" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-folder-plus"></i><span>Добавить категорию</span></button>
+                                <button id="bb-dir-stealth-btn" class="bb-dir-btn interactable bb-dir-with-icon" title="Скрывать неактивные"><i class="fa-solid fa-eye-slash"></i><span>Скрыть неактивные</span></button>
+                                <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать промпт</span></button>
+                            </div>
+                            <div id="bb-dir-preview-wrap" class="bb-dir-preview-wrap is-closed" aria-hidden="true">
+                                <div class="bb-dir-preview-inner">
+                                    <div class="bb-dir-block-title">Текущий промпт</div>
+                                    <div id="bb-dir-preview-text"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -662,6 +702,18 @@ export function createSceneDirectorUiController({
             renderPreviewToggleState();
         });
 
+        $('#bb-dir-toolbar-toggle').on('click', function onToolbarToggleClick() {
+            getSettings().toolbarCollapsed = !getSettings().toolbarCollapsed;
+            saveSettingsDebounced();
+            renderToolbarCollapsedState();
+        });
+
+        $('#bb-dir-footer-toggle').on('click', function onFooterToggleClick() {
+            getSettings().footerCollapsed = !getSettings().footerCollapsed;
+            saveSettingsDebounced();
+            renderFooterCollapsedState();
+        });
+
         $('#bb-dir-master-generate').on('click', function onGenerateMaster() {
             void masterWorkflow.generateMasterPreset();
         });
@@ -669,6 +721,8 @@ export function createSceneDirectorUiController({
         renderPresetsDropdown();
         renderDirectorHud();
         renderMasterControls();
+        renderToolbarCollapsedState();
+        renderFooterCollapsedState();
         updateDirectorPrompt();
     }
 

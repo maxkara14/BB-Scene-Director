@@ -183,6 +183,59 @@
     text-transform: uppercase;
 }
 
+.bb-dir-toolbar-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 2px;
+    margin: 0 0 6px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    appearance: none;
+}
+
+.bb-dir-toolbar-toggle .bb-dir-block-title {
+    margin: 0;
+}
+
+.bb-dir-toolbar-arrow {
+    color: var(--bb-dir-text-muted);
+    font-size: 11px;
+    line-height: 1;
+    transition: transform 0.22s ease, color 0.18s ease;
+}
+
+.bb-dir-block:not(.is-collapsed) .bb-dir-toolbar-arrow {
+    transform: rotate(180deg);
+    color: var(--bb-dir-accent);
+}
+
+.bb-dir-toolbar-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.22s ease, opacity 0.18s ease, margin-top 0.18s ease;
+    opacity: 1;
+}
+
+.bb-dir-toolbar-body-inner {
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    gap: 8px;
+}
+
+.bb-dir-block.is-collapsed .bb-dir-toolbar-body {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    margin-top: -6px;
+    pointer-events: none;
+}
+
 #bb-director-hud .bb-dir-input,
 #bb-director-settings-wrapper .bb-dir-input,
 #bb-director-hud .bb-dir-name {
@@ -683,6 +736,86 @@
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     display: grid;
     gap: 8px;
+    transition: padding 0.28s cubic-bezier(0.4, 0, 0.2, 1), gap 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bb-dir-footer-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 4px 8px 2px;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: var(--bb-dir-text-soft);
+    cursor: pointer;
+    appearance: none;
+    position: relative;
+}
+
+.bb-dir-footer-handle {
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(152, 184, 226, 0.28);
+    transition: background 0.18s ease;
+}
+
+.bb-dir-footer-toggle:hover .bb-dir-footer-handle {
+    background: rgba(152, 184, 226, 0.48);
+}
+
+.bb-dir-footer-toggle-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+
+.bb-dir-footer-arrow {
+    color: var(--bb-dir-text-muted);
+    font-size: 11px;
+    line-height: 1;
+    margin-top: 6px;
+    transition: transform 0.22s ease, color 0.18s ease;
+}
+
+.bb-dir-footer:not(.is-collapsed) .bb-dir-footer-arrow {
+    transform: rotate(180deg);
+    color: var(--bb-dir-accent);
+}
+
+.bb-dir-footer-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.32s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease;
+    opacity: 1;
+}
+
+.bb-dir-footer-body-inner {
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    gap: 8px;
+}
+
+.bb-dir-footer.is-collapsed {
+    padding-top: 4px;
+    padding-bottom: 6px;
+    gap: 0;
+}
+
+.bb-dir-footer.is-collapsed .bb-dir-footer-body {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .bb-dir-preview-wrap {
@@ -789,22 +922,47 @@
 
 @media (max-width: 560px) {
     :root {
-        --bb-dir-panel-width: calc(100vw - 42px);
+        --bb-dir-tab-width: 44px;
+        --bb-dir-panel-width: calc(100vw - var(--bb-dir-tab-width));
+    }
+
+    #bb-director-toggle {
+        width: var(--bb-dir-tab-width);
+        top: calc(var(--bb-dir-offset-top, 0px) + 120px);
+        padding: 10px 6px;
     }
 
     #bb-director-toggle.is-open {
         transform: translateX(var(--bb-dir-panel-width));
     }
 
-    .bb-dir-head {
-        padding: 16px 12px 12px;
+    #bb-director-hud {
+        box-shadow: 8px 0 24px rgba(2, 6, 15, 0.6);
     }
 
-    .bb-dir-toolbar,
-    #bb-dir-list,
-    .bb-dir-footer {
+    .bb-dir-head {
+        padding: 12px 12px 10px;
+    }
+
+    .bb-dir-title {
+        font-size: 18px;
+    }
+
+    .bb-dir-subtitle {
+        font-size: 11px;
+    }
+
+    .bb-dir-toolbar {
+        padding: 8px 10px;
+    }
+
+    #bb-dir-list {
         padding-left: 10px;
         padding-right: 10px;
+    }
+
+    .bb-dir-footer {
+        padding: 8px 10px 10px;
     }
 
     .bb-dir-master-grid,
@@ -820,6 +978,10 @@
 
     .bb-dir-card-foot {
         grid-template-columns: 1fr;
+    }
+
+    .bb-dir-footer-toggle {
+        padding-top: 8px;
     }
 }
 

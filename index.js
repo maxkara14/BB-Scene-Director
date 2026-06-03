@@ -92,6 +92,16 @@ function initializeSettings() {
         dirty = true;
     }
 
+    if (typeof settings.toolbarCollapsed !== 'boolean') {
+        settings.toolbarCollapsed = true;
+        dirty = true;
+    }
+
+    if (typeof settings.footerCollapsed !== 'boolean') {
+        settings.footerCollapsed = true;
+        dirty = true;
+    }
+
     if (typeof settings.lastActivePreset === 'undefined') {
         settings.lastActivePreset = null;
         dirty = true;
@@ -203,6 +213,8 @@ function createDefaultSettings() {
         useMacro: false,
         hideInactive: false,
         previewExpanded: false,
+        toolbarCollapsed: true,
+        footerCollapsed: true,
         expandedCategories: createDefaultExpandedCategories(),
         lastActivePreset: null,
         v2PercentageMigrated: true,
