@@ -338,6 +338,31 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.bb-dir-master-request-wrap {
+    margin-top: 8px;
+}
+
+.bb-dir-master-request {
+    resize: vertical;
+    min-height: 56px;
+    max-height: 140px;
+    font-size: 13px;
+    line-height: 1.4;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.bb-dir-master-request:focus {
+    border-color: rgba(121, 184, 255, 0.48);
+    box-shadow: 0 0 0 2px rgba(121, 184, 255, 0.1);
+    outline: none;
+}
+
+.bb-dir-master-request::placeholder {
+    color: var(--bb-dir-text-muted);
+    font-size: 12px;
+    opacity: 0.7;
+}
+
 .bb-dir-master-actions {
     margin-top: 10px;
     grid-template-columns: 1fr;
@@ -970,6 +995,12 @@
     .bb-dir-master-actions,
     .bb-dir-footer-actions {
         grid-template-columns: 1fr;
+    }
+
+    .bb-dir-master-request {
+        min-height: 48px;
+        max-height: 110px;
+        font-size: 14px;
     }
 
     .bb-dir-field-wide {

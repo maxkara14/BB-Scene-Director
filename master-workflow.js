@@ -138,14 +138,14 @@ export function createMasterWorkflow({
         }
     }
 
-    async function generateMasterPreset() {
+    async function generateMasterPreset(userRequest = '') {
         if (state.masterGenerating) {
             notify('info', 'Сборка пресета уже идёт.');
             return;
         }
 
         const master = getMasterSettings();
-        const { sourceText, systemPrompt, userPrompt } = masterPromptBuilder.buildMasterMessages();
+        const { sourceText, systemPrompt, userPrompt } = masterPromptBuilder.buildMasterMessages(userRequest);
         if (!sourceText) {
             notify('warning', 'Не удалось собрать данные из макросов персонажа и персоны.');
             return;

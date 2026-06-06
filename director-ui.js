@@ -466,6 +466,9 @@ export function createSceneDirectorUiController({
                                         <i class="fa-solid fa-file-export"></i><span>Экспорт JSON</span>
                                     </button>
                                 </div>
+                                <div class="bb-dir-master-request-wrap">
+                                    <textarea id="bb-dir-master-request" class="bb-dir-input bb-dir-master-request" rows="2" placeholder="Опишите желаемый стиль: больше хоррора, романтика, экшен..."></textarea>
+                                </div>
                                 <div class="bb-dir-master-actions">
                                     <button id="bb-dir-master-generate" class="bb-dir-btn interactable bb-dir-with-icon bb-dir-btn-primary">
                                         <i class="fa-solid fa-wand-magic-sparkles"></i><span>Сгенерировать пресет</span>
@@ -715,7 +718,8 @@ export function createSceneDirectorUiController({
         });
 
         $('#bb-dir-master-generate').on('click', function onGenerateMaster() {
-            void masterWorkflow.generateMasterPreset();
+            const userRequest = String($('#bb-dir-master-request').val() || '').trim();
+            void masterWorkflow.generateMasterPreset(userRequest);
         });
 
         renderPresetsDropdown();

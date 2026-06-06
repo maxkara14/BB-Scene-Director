@@ -148,17 +148,30 @@ export function createMasterPromptBuilder({
         return map[languageCode] || map.en;
     }
 
-    function buildMasterSystemPrompt(categories, languageMeta) {
+    function buildMasterSystemPrompt(categories, languageMeta, userRequest = '') {
         const categorySummary = categories
             .map((category) => `- ${category.id}: ${category.label}${category.hint ? ` (${category.hint})` : ''}`)
             .join('\n');
 
-        return [
+        const hasRequest = typeof userRequest === 'string' && userRequest.trim().length > 0;
+
+        const lines = [
             'You are a scene-directing preset generator for roleplay chats.',
             'Return JSON only. No markdown, no prose, no explanations.',
             `Write presetName, category labels, category hints, and directive names in ${languageMeta.labelEn}.`,
             'You may keep, remove, merge, rename, or add categories if it materially improves the preset.',
             'Return a complete preset tree in one response.',
+        ];
+
+        if (hasRequest) {
+            lines.push(
+                'IMPORTANT: The user has provided a specific creative request. This request is your TOP PRIORITY.',
+                'Shape the entire preset — categories, directives, values, and preset name — to match the user\'s request first.',
+                'Use character data as supporting context, but the user\'s creative direction takes precedence.',
+            );
+        }
+
+        lines.push(
             'Keep directive names short, reusable, concrete, and useful across several replies.',
             'Use meaningful directive values from 55 to 90 in steps of 5.',
             'Do not use 0: generated directives must be active steering signals, not disabled placeholders.',
@@ -193,10 +206,12 @@ export function createMasterPromptBuilder({
             '    }',
             '  ]',
             '}',
-        ].join('\n');
+        );
+
+        return lines.join('\n');
     }
 
-    function buildMasterMessages() {
+    function buildMasterMessages(userRequest = '') {
         const sourceText = getResolvedMasterContext();
         const categories = getCategories();
         const languageMeta = getMasterLanguageMeta(inferMasterLanguage(sourceText));
@@ -204,11 +219,28 @@ export function createMasterPromptBuilder({
             .map((category) => `- ${category.id} (${category.label}): ${category.hint || 'без подсказки'}`)
             .join('\n');
 
-        const userPrompt = [
+        const hasRequest = typeof userRequest === 'string' && userRequest.trim().length > 0;
+        const trimmedRequest = hasRequest ? userRequest.trim() : '';
+
+        const userPromptParts = [
             'Собери пресет Scene Director для ролевого чата.',
             `Язык результата: ${languageMeta.labelRu} (${languageMeta.code}).`,
             'Собери его за один ответ, как полноценное дерево категорий и директив.',
             'Ты можешь оставить подходящие категории, удалить лишние, объединить похожие и добавить новые, если это сделает пресет сильнее.',
+        ];
+
+        if (hasRequest) {
+            userPromptParts.push(
+                '',
+                '### ГЛАВНЫЙ ПРИОРИТЕТ ПОЛЬЗОВАТЕЛЯ ###',
+                `Пользователь просит: ${trimmedRequest}`,
+                'Это — основное пожелание. Весь пресет должен в первую очередь отражать этот запрос.',
+                'Адаптируй категории, директивы и их значения под этот запрос. Данные персонажа используй как контекст для адаптации, но приоритет — пожелание пользователя.',
+                '',
+            );
+        }
+
+        userPromptParts.push(
             'Подумай, какие акценты реально помогут сцене: тон, близость, энергия, конфликт, развитие, твисты, атмосферу, ритм.',
             'Не делай мусорных или слишком общих директив. Лучше меньше, но точнее.',
             'Верни только итоговый JSON-объект, без пояснений.',
@@ -218,12 +250,14 @@ export function createMasterPromptBuilder({
             '',
             'Данные о персонаже и пользователе:',
             sourceText || '(данных недостаточно)',
-        ].join('\n');
+        );
+
+        const systemPrompt = buildMasterSystemPrompt(categories, languageMeta, trimmedRequest);
 
         return {
             sourceText,
-            systemPrompt: buildMasterSystemPrompt(categories, languageMeta),
-            userPrompt,
+            systemPrompt,
+            userPrompt: userPromptParts.join('\n'),
         };
     }
 
