@@ -33,7 +33,7 @@ import { createMasterWorkflow } from './master-workflow.js';
 import { createSceneDirectorUiController } from './director-ui.js';
 
 const MODULE_NAME = 'BB-Scene-Director';
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 const DEFAULT_MASTER_MAX_TOKENS = 5000;
 const DEFAULT_MASTER_TEMPERATURE = 0.35;
 const MASTER_REQUEST_TIMEOUT_MS = 90000;
@@ -175,6 +175,8 @@ function initializeSettings() {
 
 function createDefaultMasterPreset() {
     return {
+        connectionMode: 'main',
+        tavernProfileId: '',
         url: '',
         apiKey: '',
         model: '',
@@ -391,11 +393,21 @@ function normalizePresets(rawPresets, directives) {
 function normalizeMasterPreset(raw) {
     const defaults = createDefaultMasterPreset();
     const master = raw && typeof raw === 'object' ? raw : {};
+    const url = normalizeBaseUrl(master.url);
+    const model = typeof master.model === 'string' ? master.model.trim() : '';
+    const savedMode = typeof master.connectionMode === 'string' ? master.connectionMode : '';
+    const connectionMode = ['main', 'profile', 'custom'].includes(savedMode)
+        ? savedMode
+        : (url && model ? 'custom' : 'main');
 
     return {
-        url: normalizeBaseUrl(master.url),
+        connectionMode,
+        tavernProfileId: typeof master.tavernProfileId === 'string'
+            ? master.tavernProfileId.trim()
+            : (typeof master.profileId === 'string' ? master.profileId.trim() : ''),
+        url,
         apiKey: typeof master.apiKey === 'string' ? master.apiKey : '',
-        model: typeof master.model === 'string' ? master.model.trim() : '',
+        model,
         availableModels: Array.isArray(master.availableModels)
             ? [...new Set(master.availableModels.map((item) => String(item || '').trim()).filter(Boolean))].slice(0, 200)
             : [],

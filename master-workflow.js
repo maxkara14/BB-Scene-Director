@@ -1,12 +1,17 @@
 import {
     createTimedAbortController,
+    describeMasterConnection,
     describeMasterResponseSnippet,
     fetchMasterModelsDirect,
     fetchMasterModelsViaBackend,
     getMasterConnectionDetails,
+    getMasterProfileLabel,
+    getSupportedMasterProfiles,
     isAbortLikeError,
+    MASTER_CONNECTION_MODES,
     requestMasterPresetDirect,
     requestMasterPresetViaMainConnection,
+    requestMasterPresetViaProfile,
     shouldRetryMasterGeneration,
     tryGetMainMasterConnection,
 } from './master-connection.js';
@@ -38,23 +43,28 @@ export function createMasterWorkflow({
         MASTER_STRUCTURED_MIN_TOKENS,
     } = constants;
 
-    function resolveMasterConnection() {
-        return getMasterConnectionDetails(getMasterSettings(), normalizeBaseUrl);
+    function resolveMasterConnection(options = {}) {
+        return getMasterConnectionDetails(getMasterSettings(), normalizeBaseUrl, options);
     }
 
     function getGenerationAvailability() {
         try {
             const connection = resolveMasterConnection();
+            const model = String(connection?.model || '').trim();
             return {
-                available: Boolean(String(connection?.model || '').trim()),
+                available: connection?.mode === MASTER_CONNECTION_MODES.PROFILE
+                    ? Boolean(connection.profileId)
+                    : Boolean(model),
                 mode: connection?.mode || null,
-                model: String(connection?.model || '').trim(),
+                model,
+                label: describeMasterConnection(connection),
             };
         } catch {
             return {
                 available: false,
                 mode: null,
                 model: '',
+                label: '',
             };
         }
     }
@@ -75,7 +85,7 @@ export function createMasterWorkflow({
         );
 
         try {
-            connection = resolveMasterConnection();
+            connection = resolveMasterConnection({ requireModel: false });
         } catch (error) {
             cleanup();
             notify('warning', error.message || 'Проверь параметры подключения.');
@@ -86,12 +96,12 @@ export function createMasterWorkflow({
         renderMasterControls();
 
         try {
-            if (connection.mode === 'main') {
+            if (connection.mode === MASTER_CONNECTION_MODES.MAIN || connection.mode === MASTER_CONNECTION_MODES.PROFILE) {
                 master.statusLevel = 'success';
-                master.statusText = `Кастомное подключение не задано. Для генерации используется основная модель: ${connection.model}.`;
+                master.statusText = `Готово. Для генерации используется ${describeMasterConnection(connection)}.`;
                 saveSettingsDebounced();
                 renderMasterControls();
-                notify('success', 'Будет использовано основное подключение SillyTavern.');
+                notify('success', 'Подключение выбрано.');
                 return;
             }
 
@@ -117,7 +127,7 @@ export function createMasterWorkflow({
             }
 
             master.statusLevel = 'success';
-            master.statusText = `Подключено. Найдено моделей: ${modelIds.length}.`;
+            master.statusText = `Подключено. Найдено моделей: ${modelIds.length}. Активная модель: ${master.model}.`;
 
             saveSettingsDebounced();
             renderMasterControls();
@@ -159,7 +169,7 @@ export function createMasterWorkflow({
             return;
         }
 
-        if (!connection.model) {
+        if (connection.mode !== MASTER_CONNECTION_MODES.PROFILE && !connection.model) {
             notify('warning', 'Сначала выбери модель для генерации.');
             return;
         }
@@ -193,8 +203,8 @@ export function createMasterWorkflow({
             for (let attempt = 1; attempt <= MASTER_GENERATION_MAX_ATTEMPTS; attempt++) {
                 let rawResponse;
                 try {
-                    rawResponse = connection.mode === 'custom'
-                        ? await requestMasterPresetDirect({
+                    if (connection.mode === MASTER_CONNECTION_MODES.CUSTOM) {
+                        rawResponse = await requestMasterPresetDirect({
                             url: connection.url,
                             apiKey: connection.apiKey,
                             model: connection.model,
@@ -202,21 +212,31 @@ export function createMasterWorkflow({
                             maxTokens: structuredSettings.maxTokens,
                             temperature: structuredSettings.temperature,
                             signal: controller.signal,
-                        })
-                        : await requestMasterPresetViaMainConnection({
-                            context,
+                        });
+                    } else if (connection.mode === MASTER_CONNECTION_MODES.PROFILE) {
+                        rawResponse = await requestMasterPresetViaProfile({
                             connection,
                             messages,
                             maxTokens: structuredSettings.maxTokens,
                             temperature: structuredSettings.temperature,
                             signal: controller.signal,
                         });
+                    } else {
+                        rawResponse = await requestMasterPresetViaMainConnection({
+                            context,
+                            connection,
+                            messages,
+                            maxTokens: undefined,
+                            temperature: structuredSettings.temperature,
+                            signal: controller.signal,
+                        });
+                    }
                 } catch (error) {
                     if (isAbortLikeError(error)) {
                         throw error;
                     }
 
-                    const mainFallback = connection.mode === 'custom'
+                    const mainFallback = connection.mode === MASTER_CONNECTION_MODES.CUSTOM
                         ? tryGetMainMasterConnection(normalizeBaseUrl)
                         : null;
 
@@ -230,7 +250,7 @@ export function createMasterWorkflow({
                         context,
                         connection,
                         messages,
-                        maxTokens: structuredSettings.maxTokens,
+                        maxTokens: undefined,
                         temperature: structuredSettings.temperature,
                         signal: controller.signal,
                     });
@@ -282,9 +302,7 @@ export function createMasterWorkflow({
 
             master.lastPresetName = generatedPresetEntry.preset.name;
             master.statusLevel = 'success';
-            master.statusText = connection.mode === 'main'
-                ? `Используется основная модель SillyTavern: ${connection.model}.`
-                : `Подключено. Активная модель: ${connection.model}.`;
+            master.statusText = `Готово. Для генерации используется ${describeMasterConnection(connection)}.`;
             saveSettingsDebounced();
 
             renderPresetsDropdown();
@@ -327,6 +345,8 @@ export function createMasterWorkflow({
 
     return {
         getGenerationAvailability,
+        getMasterProfileLabel,
+        getSupportedMasterProfiles,
         checkMasterConnection,
         generateMasterPreset,
     };

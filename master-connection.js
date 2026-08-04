@@ -1,5 +1,17 @@
 import { getRequestHeaders } from '../../../../script.js';
-import { chat_completion_sources, getChatCompletionModel, oai_settings } from '../../../openai.js';
+import { ConnectionManagerRequestService } from '../../shared.js';
+import {
+    chat_completion_sources,
+    createGenerationParameters,
+    getChatCompletionModel,
+    oai_settings,
+} from '../../../openai.js';
+
+export const MASTER_CONNECTION_MODES = Object.freeze({
+    MAIN: 'main',
+    PROFILE: 'profile',
+    CUSTOM: 'custom',
+});
 
 export function buildCustomHeadersYaml(apiKey) {
     const trimmed = String(apiKey || '').trim();
@@ -74,29 +86,85 @@ export function extractMasterApiError(response, responseData, fallbackMessage) {
         || fallbackMessage;
 }
 
-export function getMasterConnectionDetails(master, normalizeBaseUrl) {
+export function getMasterConnectionDetails(master, normalizeBaseUrl, { requireModel = true } = {}) {
     const url = normalizeBaseUrl(master?.url);
     const model = String(master?.model || '').trim();
+    const connectionMode = ['main', 'profile', 'custom'].includes(master?.connectionMode)
+        ? master.connectionMode
+        : (url && model ? MASTER_CONNECTION_MODES.CUSTOM : MASTER_CONNECTION_MODES.MAIN);
 
-    if (url && model) {
+    if (connectionMode === MASTER_CONNECTION_MODES.CUSTOM) {
+        if (!url) {
+            throw new Error('Укажи URL кастомного OpenAI-compatible подключения.');
+        }
+
+        if (requireModel && !model) {
+            throw new Error('Выбери модель для кастомного подключения.');
+        }
+
         return {
-            mode: 'custom',
+            mode: MASTER_CONNECTION_MODES.CUSTOM,
             url,
             apiKey: String(master?.apiKey || ''),
             model,
         };
     }
 
-    const mainConnection = tryGetMainMasterConnection(normalizeBaseUrl);
-    if (mainConnection) {
-        return mainConnection;
+    if (connectionMode === MASTER_CONNECTION_MODES.PROFILE) {
+        return getMasterProfileConnection(master);
     }
 
-    if (url && !model) {
-        throw new Error('Выбери модель для кастомного подключения или используй основное подключение SillyTavern.');
+    return getMainMasterConnection(normalizeBaseUrl);
+}
+
+export function getSupportedMasterProfiles() {
+    try {
+        return ConnectionManagerRequestService.getSupportedProfiles();
+    } catch {
+        return [];
+    }
+}
+
+export function getMasterProfileLabel(profileId) {
+    const id = String(profileId || '').trim();
+    if (!id) {
+        return '';
     }
 
-    throw new Error('Укажи URL подключения или настрой основную chat completion модель в SillyTavern.');
+    try {
+        const profile = SillyTavern.getContext()?.extensionSettings?.connectionManager?.profiles?.find((item) => item.id === id);
+        return profile?.name || '';
+    } catch {
+        return '';
+    }
+}
+
+export function getMasterProfileConnection(master) {
+    const profileId = String(master?.tavernProfileId || '').trim();
+    if (!profileId) {
+        throw new Error('Выбери сохранённый профиль SillyTavern.');
+    }
+
+    let profile;
+    try {
+        profile = getSupportedMasterProfiles().find((item) => item.id === profileId);
+    } catch {
+        profile = null;
+    }
+
+    if (!profile) {
+        throw new Error('Выбранный профиль SillyTavern недоступен или не поддерживает текстовую генерацию.');
+    }
+
+    const apiMap = ConnectionManagerRequestService.validateProfile(profile);
+    return {
+        mode: MASTER_CONNECTION_MODES.PROFILE,
+        profileId,
+        profileName: profile.name || profileId,
+        model: String(profile.model || '').trim(),
+        apiType: apiMap.selected,
+        source: apiMap.source || apiMap.type || profile.api || '',
+    };
 }
 
 export function getMainMasterConnection(normalizeBaseUrl) {
@@ -116,16 +184,9 @@ export function getMainMasterConnection(normalizeBaseUrl) {
     }
 
     return {
-        mode: 'main',
+        mode: MASTER_CONNECTION_MODES.MAIN,
         source,
         model,
-        custom_url: normalizeBaseUrl(oai_settings.custom_url),
-        vertexai_region: String(oai_settings.vertexai_region || '').trim(),
-        zai_endpoint: String(oai_settings.zai_endpoint || '').trim(),
-        siliconflow_endpoint: String(oai_settings.siliconflow_endpoint || '').trim(),
-        reverse_proxy: String(oai_settings.reverse_proxy || '').trim(),
-        proxy_password: String(oai_settings.proxy_password || '').trim(),
-        custom_prompt_post_processing: String(oai_settings.custom_prompt_post_processing || '').trim(),
     };
 }
 
@@ -320,24 +381,66 @@ export async function requestMasterPresetViaMainConnection({
     temperature,
     signal,
 }) {
+    const data = await createGenerationParameters(structuredClone(oai_settings), connection.model, 'quiet', messages);
     const requestPayload = {
+        ...data.generate_data,
         stream: false,
         messages,
         model: connection.model,
         chat_completion_source: connection.source,
-        max_tokens: maxTokens,
         temperature,
-        custom_url: connection.custom_url || undefined,
-        vertexai_region: connection.vertexai_region || undefined,
-        zai_endpoint: connection.zai_endpoint || undefined,
-        siliconflow_endpoint: connection.siliconflow_endpoint || undefined,
-        reverse_proxy: connection.reverse_proxy || undefined,
-        proxy_password: connection.proxy_password || undefined,
-        custom_prompt_post_processing: connection.custom_prompt_post_processing || undefined,
     };
+
+    if (Number.isFinite(Number(maxTokens)) && Number(maxTokens) > 0) {
+        requestPayload.max_tokens = Number(maxTokens);
+    }
 
     const response = await context.ChatCompletionService.processRequest(requestPayload, {}, true, signal);
     return response?.content ?? response;
+}
+
+export async function requestMasterPresetViaProfile({
+    connection,
+    messages,
+    maxTokens,
+    temperature,
+    signal,
+}) {
+    const managedMaxTokens = connection.apiType === 'textgenerationwebui' ? maxTokens : undefined;
+    let response;
+    try {
+        response = await ConnectionManagerRequestService.sendRequest(
+            connection.profileId,
+            messages,
+            managedMaxTokens,
+            { stream: false, signal, extractData: true, includePreset: true, includeInstruct: true },
+            { temperature },
+        );
+    } catch (error) {
+        const cause = error?.cause;
+        throw new Error(cause?.message || error?.message || String(error));
+    }
+
+    return response?.content ?? response;
+}
+
+export function describeMasterConnection(connection) {
+    if (!connection) {
+        return '';
+    }
+
+    if (connection.mode === MASTER_CONNECTION_MODES.PROFILE) {
+        const modelSuffix = connection.model ? `: ${connection.model}` : '';
+        return `профиль SillyTavern "${connection.profileName}"${modelSuffix}`;
+    }
+
+    if (connection.mode === MASTER_CONNECTION_MODES.CUSTOM) {
+        const modelSuffix = connection.model ? `: ${connection.model}` : '';
+        return `Custom OpenAI-compatible API${modelSuffix}`;
+    }
+
+    const sourceSuffix = connection.source ? ` (${connection.source})` : '';
+    return `текущие настройки SillyTavern${sourceSuffix}: ${connection.model}`;
 }
 
 export function extractModelIds(responseData) {

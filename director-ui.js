@@ -233,7 +233,7 @@ export function createSceneDirectorUiController({
         const { clearModels = false } = options;
         const master = getSettings().masterPreset;
         master.statusLevel = 'idle';
-        master.statusText = 'Параметры изменились. Нажми «Подключиться», чтобы обновить статус и список моделей генератора.';
+        master.statusText = 'Параметры изменились. Нажми «Подключиться», чтобы обновить статус генератора.';
 
         if (clearModels) {
             master.availableModels = [];
@@ -243,9 +243,44 @@ export function createSceneDirectorUiController({
         renderMasterControls();
     }
 
+    function getMasterConnectionMode(master = getSettings().masterPreset) {
+        return ['main', 'profile', 'custom'].includes(master.connectionMode) ? master.connectionMode : 'main';
+    }
+
+    function buildMasterProfileOptionsHtml(selectedProfileId = '') {
+        const selected = String(selectedProfileId || '').trim();
+        const profiles = typeof masterWorkflow.getSupportedMasterProfiles === 'function'
+            ? masterWorkflow.getSupportedMasterProfiles()
+            : [];
+        const hasSelectedProfile = selected && profiles.some((profile) => profile.id === selected);
+        const options = ['<option value="">Выбрать профиль...</option>'];
+
+        if (selected && !hasSelectedProfile) {
+            const label = typeof masterWorkflow.getMasterProfileLabel === 'function'
+                ? masterWorkflow.getMasterProfileLabel(selected)
+                : '';
+            options.push(`<option value="${escapeHtml(selected)}" selected>Недоступный профиль: ${escapeHtml(label || selected)}</option>`);
+        }
+
+        profiles.forEach((profile) => {
+            const label = profile.model
+                ? `${profile.name || profile.id} (${profile.model})`
+                : (profile.name || profile.id);
+            const selectedAttr = profile.id === selected ? ' selected' : '';
+            options.push(`<option value="${escapeHtml(profile.id)}"${selectedAttr}>${escapeHtml(label)}</option>`);
+        });
+
+        return options.join('');
+    }
+
     function renderMasterControls() {
         const master = getSettings().masterPreset;
         const availability = masterWorkflow.getGenerationAvailability();
+        const mode = getMasterConnectionMode(master);
+        const modeSelect = $('#bb-dir-master-mode');
+        const profileSelect = $('#bb-dir-master-profile');
+        const profileField = $('#bb-dir-master-profile-field');
+        const customFields = $('.bb-dir-master-custom-field');
         const urlInput = $('#bb-dir-master-url');
         const apiInput = $('#bb-dir-master-api');
         const status = $('#bb-dir-master-status');
@@ -253,6 +288,18 @@ export function createSceneDirectorUiController({
         const modelSelect = $('#bb-dir-master-model');
         const checkButton = $('#bb-dir-master-check');
         const generateButton = $('#bb-dir-master-generate');
+
+        if (modeSelect.length && modeSelect.val() !== mode) {
+            modeSelect.val(mode);
+        }
+
+        if (profileSelect.length) {
+            profileSelect.html(buildMasterProfileOptionsHtml(master.tavernProfileId));
+            profileSelect.val(master.tavernProfileId || '');
+        }
+
+        profileField.toggle(mode === 'profile');
+        customFields.toggle(mode === 'custom');
 
         if (urlInput.length && urlInput.val() !== master.url) {
             urlInput.val(master.url);
@@ -266,11 +313,11 @@ export function createSceneDirectorUiController({
             status.removeClass('is-idle is-success is-error is-busy');
 
             if (state.masterChecking) {
-                status.addClass('is-busy').text('Проверяю подключение и список моделей...');
+                status.addClass('is-busy').text('Проверяю подключение...');
             } else if (state.masterGenerating) {
                 status.addClass('is-busy').text('Собираю пресет...');
-            } else if (master.statusLevel === 'idle' && availability.mode === 'main' && availability.model) {
-                status.addClass('is-idle').text(`Кастомное подключение не задано. Для генерации будет использована основная модель: ${availability.model}.`);
+            } else if (master.statusLevel === 'idle' && availability.label) {
+                status.addClass('is-idle').text(`Для генерации будет использовано: ${availability.label}.`);
             } else {
                 const statusClass = master.statusLevel === 'success'
                     ? 'is-success'
@@ -291,7 +338,12 @@ export function createSceneDirectorUiController({
             modelSelect.empty();
             modelSelect.attr('title', master.model || '');
 
-            if (models.length) {
+            if (mode !== 'custom') {
+                const label = availability.model || 'Модель берётся из выбранного источника';
+                modelSelect.append(`<option value="${escapeHtml(availability.model || '')}">${escapeHtml(label)}</option>`);
+                modelSelect.val(availability.model || '');
+                modelSelect.prop('disabled', true);
+            } else if (models.length) {
                 models.forEach((modelId) => {
                     modelSelect.append(`<option value="${escapeHtml(modelId)}">${escapeHtml(modelId)}</option>`);
                 });
@@ -320,7 +372,10 @@ export function createSceneDirectorUiController({
         }
 
         if (checkButton.length) {
-            checkButton.prop('disabled', state.masterChecking || state.masterGenerating || !normalizeBaseUrl(master.url));
+            const canCheck = mode === 'main'
+                || (mode === 'profile' && Boolean(master.tavernProfileId))
+                || (mode === 'custom' && Boolean(normalizeBaseUrl(master.url)));
+            checkButton.prop('disabled', state.masterChecking || state.masterGenerating || !canCheck);
         }
 
         if (generateButton.length) {
@@ -358,21 +413,35 @@ export function createSceneDirectorUiController({
                         <div class="bb-dir-block-title">Подключение генератора пресета</div>
                         <div class="bb-dir-master-grid">
                             <label class="bb-dir-field bb-dir-field-wide">
+                                <span>Источник</span>
+                                <select id="bb-dir-master-mode" class="bb-dir-input">
+                                    <option value="main" ${getMasterConnectionMode(settings.masterPreset) === 'main' ? 'selected' : ''}>Текущие настройки SillyTavern</option>
+                                    <option value="profile" ${getMasterConnectionMode(settings.masterPreset) === 'profile' ? 'selected' : ''}>Сохранённый профиль SillyTavern</option>
+                                    <option value="custom" ${getMasterConnectionMode(settings.masterPreset) === 'custom' ? 'selected' : ''}>Custom OpenAI-compatible API</option>
+                                </select>
+                            </label>
+                            <label id="bb-dir-master-profile-field" class="bb-dir-field bb-dir-field-wide">
+                                <span>Профиль SillyTavern</span>
+                                <select id="bb-dir-master-profile" class="bb-dir-input">
+                                    ${buildMasterProfileOptionsHtml(settings.masterPreset.tavernProfileId)}
+                                </select>
+                            </label>
+                            <label class="bb-dir-field bb-dir-field-wide bb-dir-master-custom-field">
                                 <span>URL</span>
                                 <input id="bb-dir-master-url" class="bb-dir-input" type="text" placeholder="Например: https://site.com/v1">
                             </label>
-                            <label class="bb-dir-field">
+                            <label class="bb-dir-field bb-dir-master-custom-field">
                                 <span>API-ключ</span>
                                 <input id="bb-dir-master-api" class="bb-dir-input" type="password" placeholder="Токен или ключ доступа">
                             </label>
-                            <label class="bb-dir-field">
+                            <label class="bb-dir-field bb-dir-master-custom-field">
                                 <span>Модель</span>
                                 <select id="bb-dir-master-model" class="bb-dir-input" disabled>
                                     <option value="">Модели не загружены</option>
                                 </select>
                             </label>
                         </div>
-                        <div class="bb-dir-note">Используется отдельное подключение для сборки пресета. Основная модель чата не трогается.</div>
+                        <div class="bb-dir-note">Можно использовать текущие настройки SillyTavern, сохранённый профиль Connection Manager или отдельный OpenAI-compatible API.</div>
                         <div class="bb-dir-master-actions">
                             <button id="bb-dir-master-check" class="bb-dir-btn interactable bb-dir-with-icon">
                                 <i class="fa-solid fa-plug"></i><span>Подключиться</span>
@@ -396,6 +465,18 @@ export function createSceneDirectorUiController({
             updateDirectorPrompt();
         });
 
+        $('#bb-dir-master-mode').on('change', function onMasterModeChange() {
+            const value = String($(this).val() || '').trim();
+            const master = getSettings().masterPreset;
+            master.connectionMode = ['main', 'profile', 'custom'].includes(value) ? value : 'main';
+            markMasterConnectionDirty({ clearModels: true });
+        });
+
+        $('#bb-dir-master-profile').on('change', function onMasterProfileChange() {
+            getSettings().masterPreset.tavernProfileId = String($(this).val() || '').trim();
+            markMasterConnectionDirty({ clearModels: true });
+        });
+
         $('#bb-dir-master-url').on('input', function onUrlInput() {
             getSettings().masterPreset.url = String($(this).val() || '');
             markMasterConnectionDirty({ clearModels: true });
@@ -407,6 +488,10 @@ export function createSceneDirectorUiController({
         });
 
         $('#bb-dir-master-model').on('change', function onModelChange() {
+            if (getMasterConnectionMode() !== 'custom') {
+                return;
+            }
+
             const value = String($(this).val() || '').trim();
             if (!value) {
                 return;
