@@ -880,6 +880,18 @@
     background: linear-gradient(180deg, rgba(39, 52, 76, 0.98), rgba(20, 28, 42, 0.98));
 }
 
+#bb-dir-pause-btn.is-active {
+    border-color: rgba(111, 212, 154, 0.48);
+    color: var(--bb-dir-success);
+    background: linear-gradient(180deg, rgba(43, 76, 59, 0.92), rgba(18, 35, 27, 0.96));
+}
+
+#bb-dir-pause-btn.is-paused {
+    border-color: rgba(246, 197, 111, 0.58);
+    color: var(--bb-dir-warn);
+    background: linear-gradient(180deg, rgba(78, 58, 29, 0.92), rgba(37, 28, 19, 0.96));
+}
+
 #bb-dir-preview-toggle.is-active {
     border-color: var(--bb-dir-border-strong);
     background: linear-gradient(180deg, rgba(39, 52, 76, 0.98), rgba(20, 28, 42, 0.98));

@@ -64,6 +64,26 @@ export function createSceneDirectorUiController({
         button.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
     }
 
+    function updatePauseButtonState() {
+        const button = $('#bb-dir-pause-btn');
+        if (!button.length) {
+            return;
+        }
+
+        const isPaused = Boolean(getSettings().paused);
+        const icon = isPaused ? 'fa-circle-play' : 'fa-circle-pause';
+        const label = isPaused ? 'Пауза' : 'Активен';
+        const title = isPaused
+            ? 'Scene Director на паузе. Нажми, чтобы включить.'
+            : 'Scene Director активен. Нажми, чтобы временно отключить.';
+
+        button.toggleClass('is-active', !isPaused);
+        button.toggleClass('is-paused', isPaused);
+        button.attr('title', title);
+        button.attr('aria-pressed', isPaused ? 'true' : 'false');
+        button.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
+    }
+
     function renderToolbarCollapsedState() {
         const settings = getSettings();
         const block = $('#bb-director-hud').find('.bb-dir-toolbar .bb-dir-block');
@@ -225,6 +245,7 @@ export function createSceneDirectorUiController({
         root.html(sections);
 
         updateStealthButtonState();
+        updatePauseButtonState();
         renderPreviewToggleState();
         requestAnimationFrame(revealDirectiveCardIfNeeded);
     }
@@ -576,6 +597,7 @@ export function createSceneDirectorUiController({
                         <div class="bb-dir-footer-body-inner">
                             <div class="bb-dir-footer-actions">
                                 <button id="bb-dir-add-btn" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-folder-plus"></i><span>Добавить категорию</span></button>
+                                <button id="bb-dir-pause-btn" class="bb-dir-btn interactable bb-dir-with-icon" type="button" aria-pressed="false"><i class="fa-solid fa-circle-pause"></i><span>Активен</span></button>
                                 <button id="bb-dir-stealth-btn" class="bb-dir-btn interactable bb-dir-with-icon" title="Скрывать неактивные"><i class="fa-solid fa-eye-slash"></i><span>Скрыть неактивные</span></button>
                                 <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать промпт</span></button>
                             </div>
@@ -782,6 +804,13 @@ export function createSceneDirectorUiController({
             getSettings().hideInactive = !getSettings().hideInactive;
             saveSettingsDebounced();
             renderDirectorHud();
+        });
+
+        $('#bb-dir-pause-btn').on('click', function onPauseClick() {
+            getSettings().paused = !getSettings().paused;
+            saveSettingsDebounced();
+            updateDirectorPrompt();
+            updatePauseButtonState();
         });
 
         $('#bb-dir-preview-toggle').on('click', function onPreviewToggle() {

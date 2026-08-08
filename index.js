@@ -82,6 +82,11 @@ function initializeSettings() {
         dirty = true;
     }
 
+    if (typeof settings.paused !== 'boolean') {
+        settings.paused = false;
+        dirty = true;
+    }
+
     if (typeof settings.hideInactive !== 'boolean') {
         settings.hideInactive = false;
         dirty = true;
@@ -213,6 +218,7 @@ function createDefaultSettings() {
         directives: [],
         presets: [],
         useMacro: false,
+        paused: false,
         hideInactive: false,
         previewExpanded: false,
         toolbarCollapsed: true,
@@ -523,6 +529,10 @@ function groupDirectivesByCategory(directives) {
 }
 
 function getDirectorPromptText() {
+    if (getSettings().paused) {
+        return '';
+    }
+
     const activeDirectives = getSettings().directives.filter((directive) => directive.active);
     if (!activeDirectives.length) {
         return '';
@@ -560,9 +570,13 @@ function getDirectorPromptText() {
 function updateDirectorPrompt() {
     const promptText = getDirectorPromptText();
     const previewBox = $('#bb-dir-preview-text');
+    const isPaused = Boolean(getSettings().paused);
+    const emptyPromptText = isPaused
+        ? 'Scene Director на паузе. Промпт сейчас пустой.'
+        : 'Нет активных директив. Промпт сейчас пустой.';
 
     if (previewBox.length) {
-        previewBox.text(promptText || 'Нет активных директив. Промпт сейчас пустой.');
+        previewBox.text(promptText || emptyPromptText);
     }
 
     if (getSettings().useMacro) {
@@ -732,7 +746,7 @@ jQuery(async () => {
         const context = SillyTavern.getContext();
 
         if (context.registerMacro) {
-            context.registerMacro('bb_scene', () => (getSettings().useMacro ? getDirectorPromptText() : ''));
+            context.registerMacro('bb_scene', () => (getSettings().useMacro && !getSettings().paused ? getDirectorPromptText() : ''));
         }
 
         eventSource.on(event_types.APP_READY, () => {
@@ -741,6 +755,7 @@ jQuery(async () => {
             renderPresetsDropdown();
             renderDirectorHud();
             renderMasterControls();
+            updateDirectorPrompt();
             updateHudTopOffset();
             toggleHudVisibility();
 
