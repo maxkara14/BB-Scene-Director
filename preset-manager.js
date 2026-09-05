@@ -4,6 +4,7 @@ export function createPresetManager({
     createDirective,
     createPresetItemFromDirective,
     createPresetRecord,
+    draftState,
     flashButton,
     getCategories,
     getSelectedPresetIndex,
@@ -33,6 +34,7 @@ export function createPresetManager({
     }
 
     function applyPresetItems(items, options = {}) {
+        draftState.checkpoint();
         const settings = getSettings();
         const existingById = new Map(settings.directives.map((directive) => [directive.id, directive]));
         const existingByName = new Map(settings.directives.map((directive) => [directive.name.toLowerCase(), directive]));
@@ -86,6 +88,29 @@ export function createPresetManager({
         if (options.clearSelectedPreset) {
             settings.lastActivePreset = null;
         }
+        if (Number.isInteger(options.presetIndex)) {
+            settings.lastActivePreset = options.presetIndex;
+        }
+    }
+
+    function isDraftUnchanged(signature) {
+        if (draftState.getSignature() === signature) {
+            return true;
+        }
+        notify('warning', 'Чат или сцена изменились, пока был открыт диалог. Повтори действие для текущей сцены.');
+        return false;
+    }
+
+    async function confirmDraftReplacement() {
+        if (!draftState.getStatus().dirty) {
+            return true;
+        }
+        const signature = draftState.getSignature();
+        const confirmed = await confirmAction(
+            'В текущей сцене есть изменения, не сохранённые в пресет. Заменить её? Предыдущее состояние можно вернуть кнопкой «Отменить» до перезагрузки страницы.',
+            { okButton: 'Заменить', cancelButton: 'Оставить сцену' },
+        );
+        return confirmed && isDraftUnchanged(signature);
     }
 
     async function handleLoadPreset() {
@@ -101,12 +126,16 @@ export function createPresetManager({
             return;
         }
 
+        if (!await confirmDraftReplacement()) {
+            return;
+        }
+
         applyPresetItems(preset.items, {
             expandTouchedCategories: true,
             replaceCategories: Array.isArray(preset.categories) && preset.categories.length > 0,
             categories: preset.categories,
+            presetIndex: index,
         });
-        getSettings().lastActivePreset = index;
         saveSettingsDebounced();
         renderPresetsDropdown();
         renderDirectorHud();
@@ -127,29 +156,32 @@ export function createPresetManager({
             return;
         }
 
+        const signature = draftState.getSignature();
         const confirmed = await confirmAction(
             `Перезаписать пресет "${preset.name}" текущим деревом категорий и директив?`,
             { okButton: 'Перезаписать', cancelButton: 'Отмена' },
         );
 
-        if (!confirmed) {
+        if (!confirmed || !isDraftUnchanged(signature)) {
             return;
         }
 
         preset.items = captureCurrentPresetItems();
         preset.categories = normalizeCategories(getCategories(), preset.items, []);
         saveSettingsDebounced();
+        updateDirectorPrompt();
         flashButton(button);
         notify('success', `Пресет "${preset.name}" обновлён.`);
     }
 
     async function handleSaveNewPreset() {
+        const signature = draftState.getSignature();
         const name = await promptText('Название нового пресета:', '', {
             okButton: 'Сохранить',
             cancelButton: 'Отмена',
         });
 
-        if (!name || !name.trim()) {
+        if (!name || !name.trim() || !isDraftUnchanged(signature)) {
             return;
         }
 
@@ -169,6 +201,7 @@ export function createPresetManager({
         saveSettingsDebounced();
         renderPresetsDropdown();
         setSelectedPresetIndex(getSettings().lastActivePreset);
+        updateDirectorPrompt();
         notify('success', `Пресет "${preset.name}" сохранён.`);
     }
 
@@ -198,6 +231,7 @@ export function createPresetManager({
         saveSettingsDebounced();
         renderPresetsDropdown();
         setSelectedPresetIndex(index);
+        updateDirectorPrompt();
         notify('success', `Пресет переименован в "${preset.name}".`);
     }
 
@@ -233,6 +267,7 @@ export function createPresetManager({
 
         saveSettingsDebounced();
         renderPresetsDropdown();
+        updateDirectorPrompt();
         notify('success', `Пресет "${preset.name}" удалён.`);
     }
 
@@ -269,6 +304,7 @@ export function createPresetManager({
         }
 
         const usage = getCategoryUsageSnapshot(normalizedId);
+        const signature = draftState.getSignature();
         const details = [];
         if (usage.draftDirectiveCount) {
             details.push(`директив в текущем черновике: ${usage.draftDirectiveCount}`);
@@ -287,14 +323,14 @@ export function createPresetManager({
             { okButton: 'Удалить категорию', cancelButton: 'Отмена' },
         );
 
-        if (!confirmed) {
+        if (!confirmed || !isDraftUnchanged(signature)) {
             return;
         }
 
+        draftState.checkpoint();
         settings.directives = settings.directives.filter((directive) => directive.category !== normalizedId);
         settings.categories = settings.categories.filter((item) => item.id !== normalizedId);
         settings.expandedCategories = normalizeExpandedCategories(settings.expandedCategories, settings.categories);
-        settings.lastActivePreset = null;
 
         saveSettingsDebounced();
         renderPresetsDropdown();
@@ -303,7 +339,7 @@ export function createPresetManager({
         notify('success', `Категория "${category.label}" удалена.`);
     }
 
-    function saveGeneratedPreset({ presetName, items, categories, partial = false }) {
+    function saveGeneratedPreset({ presetName, items, categories, partial = false, select = true }) {
         const uniqueName = getUniquePresetName(
             String(presetName || '').trim() || 'Собранный пресет',
             getSettings().presets,
@@ -316,8 +352,10 @@ export function createPresetManager({
 
         getSettings().presets.push(preset);
         const presetIndex = getSettings().presets.length - 1;
-        getSettings().lastActivePreset = presetIndex;
-        setSelectedPresetIndex(presetIndex);
+        if (select) {
+            getSettings().lastActivePreset = presetIndex;
+            setSelectedPresetIndex(presetIndex);
+        }
 
         return {
             preset,
@@ -328,6 +366,7 @@ export function createPresetManager({
     return {
         applyPresetItems,
         captureCurrentPresetItems,
+        confirmDraftReplacement,
         getCategoryUsageSnapshot,
         getReplacementCategoryId,
         handleDeleteCategory,

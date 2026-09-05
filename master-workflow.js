@@ -18,6 +18,7 @@ import {
 
 export function createMasterWorkflow({
     abortMasterGeneration,
+    draftState,
     constants,
     getContext,
     getMasterSettings,
@@ -174,6 +175,11 @@ export function createMasterWorkflow({
             return;
         }
 
+        if (!await presetManager.confirmDraftReplacement() || state.masterGenerating) {
+            return;
+        }
+        const originalDraftSignature = draftState.getSignature();
+        const allowMainFallback = master.allowMainFallback === true;
         const context = getContext();
         const { controller, cleanup } = createTimedAbortController(
             MASTER_REQUEST_TIMEOUT_MS,
@@ -232,11 +238,11 @@ export function createMasterWorkflow({
                         });
                     }
                 } catch (error) {
-                    if (isAbortLikeError(error)) {
+                    if (controller.signal.aborted || isAbortLikeError(error)) {
                         throw error;
                     }
 
-                    const mainFallback = connection.mode === MASTER_CONNECTION_MODES.CUSTOM
+                    const mainFallback = connection.mode === MASTER_CONNECTION_MODES.CUSTOM && allowMainFallback
                         ? tryGetMainMasterConnection(normalizeBaseUrl)
                         : null;
 
@@ -245,6 +251,7 @@ export function createMasterWorkflow({
                     }
 
                     console.warn('[BB Scene Director] Custom master connection failed, falling back to the main SillyTavern connection.', error);
+                    notify('warning', 'Отдельный API недоступен. Использую основное подключение SillyTavern согласно настройке резерва.');
                     connection = mainFallback;
                     rawResponse = await requestMasterPresetViaMainConnection({
                         context,
@@ -286,19 +293,26 @@ export function createMasterWorkflow({
                 throw new Error('Не удалось собрать пресет после повторной попытки.');
             }
 
+            if (controller.signal.aborted) {
+                throw new Error('Генерация отменена.');
+            }
+            const shouldApply = draftState.getSignature() === originalDraftSignature;
             const generatedPresetEntry = presetManager.saveGeneratedPreset({
                 presetName: parsed.presetName,
                 items: parsed.items,
                 categories: parsed.categories,
                 partial: parsed.partial,
+                select: false,
             });
 
-            presetManager.applyPresetItems(parsed.items, {
-                clearSelectedPreset: false,
-                expandTouchedCategories: true,
-                replaceCategories: Array.isArray(parsed.categories) && parsed.categories.length > 0,
-                categories: parsed.categories,
-            });
+            if (shouldApply) {
+                presetManager.applyPresetItems(parsed.items, {
+                    presetIndex: generatedPresetEntry.index,
+                    expandTouchedCategories: true,
+                    replaceCategories: Array.isArray(parsed.categories) && parsed.categories.length > 0,
+                    categories: parsed.categories,
+                });
+            }
 
             master.lastPresetName = generatedPresetEntry.preset.name;
             master.statusLevel = 'success';
@@ -314,11 +328,15 @@ export function createMasterWorkflow({
                 console.warn('[BB Scene Director] Master preset was partially recovered from a truncated response.');
             }
 
-            notify('success', parsed.partial
-                ? `Пресет "${generatedPresetEntry.preset.name}" частично восстановлен, сохранён и применён.`
-                : `Пресет "${generatedPresetEntry.preset.name}" собран, сохранён и применён.`);
+            if (!shouldApply) {
+                notify('info', 'Пресет сохранён в библиотеку. Текущая сцена изменилась за время генерации, поэтому результат не применён.');
+            } else {
+                notify('success', parsed.partial
+                    ? `Пресет "${generatedPresetEntry.preset.name}" частично восстановлен, сохранён и применён.`
+                    : `Пресет "${generatedPresetEntry.preset.name}" собран, сохранён и применён.`);
+            }
         } catch (error) {
-            const aborted = isAbortLikeError(error);
+            const aborted = controller.signal.aborted || isAbortLikeError(error);
             master.statusLevel = aborted ? 'idle' : 'error';
             master.statusText = aborted
                 ? String(controller.signal.reason || error.message || 'Сборка пресета отменена.')

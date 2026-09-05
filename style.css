@@ -412,6 +412,28 @@
     line-height: 1.35;
 }
 
+.bb-dir-draft-bar {
+    display: grid;
+    gap: 6px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+}
+
+#bb-dir-draft-status {
+    color: var(--bb-dir-text-muted);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+#bb-dir-draft-status.is-dirty {
+    color: var(--bb-dir-accent);
+}
+
+.bb-dir-draft-actions {
+    display: flex;
+    gap: 6px;
+}
+
 .bb-dir-settings-master {
     margin-top: 12px;
     padding-top: 12px;

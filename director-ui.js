@@ -1,6 +1,7 @@
 export function createSceneDirectorUiController({
     createCategoryRecord,
     createDirective,
+    draftState,
     ensureCategoriesExist,
     ensureCategoryExpansionState,
     escapeHtml,
@@ -48,6 +49,26 @@ export function createSceneDirectorUiController({
     function findDirectiveByCard(cardElement) {
         const directiveId = String($(cardElement).closest('.bb-dir-card').data('id') || '');
         return getSettings().directives.find((directive) => directive.id === directiveId) || null;
+    }
+
+    function renderDraftStatus() {
+        const status = draftState.getStatus();
+        const text = status.presetName
+            ? `${status.presetName} — ${status.dirty ? 'изменён' : 'без изменений'}`
+            : status.dirty ? 'Черновик — не сохранён как пресет' : 'Пустая сцена';
+        $('#bb-dir-draft-status').text(text).toggleClass('is-dirty', status.dirty);
+        $('#bb-dir-undo').prop('disabled', !status.canUndo);
+        $('#bb-dir-redo').prop('disabled', !status.canRedo);
+    }
+
+    function restoreDraft(direction) {
+        if (!draftState[direction]()) {
+            return;
+        }
+        saveSettingsDebounced();
+        renderPresetsDropdown();
+        renderDirectorHud();
+        updateDirectorPrompt();
     }
 
     function updateStealthButtonState() {
@@ -247,6 +268,7 @@ export function createSceneDirectorUiController({
         updateStealthButtonState();
         updatePauseButtonState();
         renderPreviewToggleState();
+        renderDraftStatus();
         requestAnimationFrame(revealDirectiveCardIfNeeded);
     }
 
@@ -461,6 +483,10 @@ export function createSceneDirectorUiController({
                                     <option value="">Модели не загружены</option>
                                 </select>
                             </label>
+                            <label class="checkbox_label bb-dir-field-wide bb-dir-master-custom-field">
+                                <input id="bb-dir-master-fallback" type="checkbox" ${settings.masterPreset.allowMainFallback ? 'checked' : ''}>
+                                <span>При ошибке отправить запрос основному подключению SillyTavern</span>
+                            </label>
                         </div>
                         <div class="bb-dir-note">Можно использовать текущие настройки SillyTavern, сохранённый профиль Connection Manager или отдельный OpenAI-compatible API.</div>
                         <div class="bb-dir-master-actions">
@@ -508,6 +534,11 @@ export function createSceneDirectorUiController({
             markMasterConnectionDirty({ clearModels: true });
         });
 
+        $('#bb-dir-master-fallback').on('change', function onFallbackChange() {
+            getSettings().masterPreset.allowMainFallback = $(this).is(':checked');
+            saveSettingsDebounced();
+        });
+
         $('#bb-dir-master-model').on('change', function onModelChange() {
             if (getMasterConnectionMode() !== 'custom') {
                 return;
@@ -545,7 +576,7 @@ export function createSceneDirectorUiController({
                 <div class="bb-dir-head">
                     <div class="bb-dir-kicker">Scene Director</div>
                     <div class="bb-dir-title">SD</div>
-                    <div class="bb-dir-subtitle">Настройка пресета ролевой игры</div>
+                    <div class="bb-dir-subtitle">Сцена текущего чата</div>
                 </div>
 
                 <div class="bb-dir-toolbar">
@@ -568,8 +599,11 @@ export function createSceneDirectorUiController({
                                     <button id="bb-dir-import-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Импортировать JSON-пресет">
                                         <i class="fa-solid fa-file-import"></i><span>Импорт JSON</span>
                                     </button>
-                                    <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать пресет в JSON">
-                                        <i class="fa-solid fa-file-export"></i><span>Экспорт JSON</span>
+                                    <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать текущие значения панели в JSON">
+                                        <i class="fa-solid fa-file-export"></i><span>Экспорт сцены</span>
+                                    </button>
+                                    <button id="bb-dir-export-saved-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать сохранённую версию выбранного пресета">
+                                        <i class="fa-solid fa-file-export"></i><span>Экспорт пресета</span>
                                     </button>
                                 </div>
                                 <div class="bb-dir-master-request-wrap">
@@ -585,6 +619,13 @@ export function createSceneDirectorUiController({
                     </div>
                 </div>
 
+                <div class="bb-dir-draft-bar">
+                    <div id="bb-dir-draft-status" role="status"></div>
+                    <div class="bb-dir-draft-actions">
+                        <button id="bb-dir-undo" type="button" class="bb-dir-btn interactable" disabled title="Отменить изменение сцены (история до перезагрузки страницы)">Отменить</button>
+                        <button id="bb-dir-redo" type="button" class="bb-dir-btn interactable" disabled title="Повторить изменение сцены">Повторить</button>
+                    </div>
+                </div>
                 <div id="bb-dir-list"></div>
 
                 <div class="bb-dir-footer" id="bb-dir-footer">
@@ -652,12 +693,21 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
-                directive.value = snapDirectiveValue($(this).val());
+                const nextValue = snapDirectiveValue($(this).val());
+                if (nextValue === directive.value) {
+                    return;
+                }
+                draftState.checkpoint(`slider:${directive.id}`);
+                directive.value = nextValue;
                 const card = $(this).closest('.bb-dir-card');
                 card.find('.bb-dir-slider-value').text(`${directive.value}%`);
                 card.find('.bb-dir-level-pill').text(getIntensityLabel(directive.value));
-                saveSettingsDebounced();
+                saveSettingsDebounced({ deferMetadata: true });
                 schedulePromptUpdate();
+            })
+            .on('change', '.bb-dir-slider', function onSliderChange() {
+                draftState.endGroup();
+                saveSettingsDebounced();
             })
             .on('click', '.bb-dir-toggle', function onToggleDirective() {
                 const directive = findDirectiveByCard(this);
@@ -665,6 +715,7 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
+                draftState.checkpoint();
                 directive.active = !directive.active;
                 saveSettingsDebounced();
                 renderDirectorHud();
@@ -676,6 +727,7 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
+                draftState.checkpoint();
                 getSettings().directives = getSettings().directives.filter((item) => item.id !== directive.id);
                 saveSettingsDebounced();
                 renderDirectorHud();
@@ -687,6 +739,7 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
+                draftState.checkpoint();
                 directive.name = String($(this).val() || '').trim() || 'Новая директива';
                 saveSettingsDebounced();
                 updateDirectorPrompt();
@@ -697,6 +750,7 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
+                draftState.checkpoint();
                 directive.category = normalizeCategoryId($(this).val(), getSettings().categories);
                 ensureCategoryExpansionState(directive.category, true);
                 state.revealDirectiveId = directive.id;
@@ -712,6 +766,7 @@ export function createSceneDirectorUiController({
                     value: 50,
                     active: true,
                 });
+                draftState.checkpoint();
                 getSettings().directives.push(directive);
                 ensureCategoryExpansionState(categoryId, true);
                 state.revealDirectiveId = directive.id;
@@ -730,6 +785,7 @@ export function createSceneDirectorUiController({
             });
 
         $('#bb-dir-add-btn').on('click', async function onAddCategoryClick() {
+            const signature = draftState.getSignature();
             const name = await promptText('Название новой категории:', '', {
                 okButton: 'Дальше',
                 cancelButton: 'Отмена',
@@ -739,6 +795,10 @@ export function createSceneDirectorUiController({
                 return;
             }
 
+            if (draftState.getSignature() !== signature) {
+                notify('warning', 'Чат или сцена изменились. Повтори добавление категории в текущей сцене.');
+                return;
+            }
             const label = name.trim();
             const draftCategory = createCategoryRecord({
                 id: label,
@@ -759,6 +819,11 @@ export function createSceneDirectorUiController({
                 cancelButton: 'Пропустить',
             });
 
+            if (draftState.getSignature() !== signature) {
+                notify('warning', 'Чат или сцена изменились. Повтори добавление категории в текущей сцене.');
+                return;
+            }
+            draftState.checkpoint();
             ensureCategoriesExist([{
                 ...draftCategory,
                 hint: String(hint || '').trim(),
@@ -786,7 +851,16 @@ export function createSceneDirectorUiController({
             void presetManager.handleDeletePreset();
         });
         $('#bb-dir-export-json').on('click', function onExportPresetClick() {
-            void presetTransfer.handleExportPreset();
+            void presetTransfer.handleExportPreset('draft');
+        });
+        $('#bb-dir-export-saved-json').on('click', function onExportSavedPresetClick() {
+            void presetTransfer.handleExportPreset('saved');
+        });
+        $('#bb-dir-undo').on('click', function onUndoClick() {
+            restoreDraft('undo');
+        });
+        $('#bb-dir-redo').on('click', function onRedoClick() {
+            restoreDraft('redo');
         });
         $('#bb-dir-import-json').on('click', function onImportPresetClick() {
             const input = presetTransfer.createImportFileInput();
@@ -890,6 +964,7 @@ export function createSceneDirectorUiController({
     return {
         ensureDirectorHud,
         renderDirectorHud,
+        renderDraftStatus,
         renderMasterControls,
         renderPresetsDropdown,
         setupExtensionSettings,

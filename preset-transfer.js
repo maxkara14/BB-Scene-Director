@@ -55,7 +55,10 @@ export function createPresetTransferController({
         });
     }
 
-    function getExportPresetSnapshot() {
+    function getExportPresetSnapshot(source = 'draft') {
+        if (source === 'draft') {
+            return getCurrentDraftPresetSnapshot();
+        }
         const selectedIndex = getSelectedPresetIndex();
         if (selectedIndex !== null) {
             const preset = getSettings().presets[selectedIndex];
@@ -64,7 +67,7 @@ export function createPresetTransferController({
             }
         }
 
-        return getCurrentDraftPresetSnapshot();
+        return null;
     }
 
     function downloadTextFile(filename, content, mimeType = 'application/json;charset=utf-8') {
@@ -94,10 +97,12 @@ export function createPresetTransferController({
         return input;
     }
 
-    async function handleExportPreset() {
-        const preset = getExportPresetSnapshot();
+    async function handleExportPreset(source = 'draft') {
+        const preset = getExportPresetSnapshot(source);
         if (!preset) {
-            notify('warning', 'Сначала создай или выбери пресет для экспорта.');
+            notify('warning', source === 'draft'
+                ? 'В текущей сцене нет директив для экспорта.'
+                : 'Сначала выбери сохранённый пресет для экспорта.');
             return;
         }
 
