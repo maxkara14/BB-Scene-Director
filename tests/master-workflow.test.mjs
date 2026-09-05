@@ -2,7 +2,46 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as model from '../preset-model.js';
 import { createMasterPresetParser } from '../master-preset-parser.js';
+import { createSceneEditController } from '../scene-edit.js';
 import { createFixture, loadWithHostMocks } from './helpers.mjs';
+
+const editResponse = JSON.stringify({ changes: [{ op: 'update', id: 'original', directive: { name: 'Mood', value: 80, active: false, category: 'focus' } }] });
+
+for (const mode of ['custom', 'main', 'profile']) {
+    test(`${mode} scene editing previews a sparse result before applying, without replacing library presets`, async () => {
+        const f = await setup({ mode, response: editResponse });
+        f.confirm(false);
+        await f.workflow.generateMasterPreset('Raise tension', { mode: 'edit', messageCount: 10 });
+        assert.equal(f.settings.directives[0].value, 80);
+        assert.equal(f.settings.directives[0].active, false);
+        assert.equal(f.settings.presets.length, 1);
+        assert.equal(f.confirmationCount(), 0);
+        assert.deepEqual(f.events, ['show', 'hide', 'preview']);
+        assert.equal(f.state.masterGenerating, false);
+        f.draftState.undo();
+        assert.equal(f.settings.directives[0].value, 30);
+    });
+}
+
+for (const option of ['cancelPreview', 'changeDuringPreview', 'abortDuringPreview', 'changeDraft', 'ignoreAbort']) {
+    test(`scene editing preserves user state on ${option}`, async () => {
+        const f = await setup({ response: editResponse, [option]: true });
+        await f.workflow.generateMasterPreset('Edit', { mode: 'edit' });
+        assert.equal(f.settings.directives[0].value, ['changeDraft', 'changeDuringPreview'].includes(option) ? 95 : 30);
+        assert.equal(f.settings.presets.length, 1);
+        assert.equal(f.draftState.getStatus().canUndo, false);
+    });
+}
+
+test('malformed edit response and an empty request cannot change the scene', async () => {
+    const f = await setup({ response: '{"changes":[' });
+    await f.workflow.generateMasterPreset('', { mode: 'edit' });
+    assert.equal(f.calls.length, 0);
+    await f.workflow.generateMasterPreset('Edit', { mode: 'edit' });
+    assert.equal(f.settings.directives[0].value, 30);
+    assert.equal(f.master.statusLevel, 'error');
+    assert.ok(!f.events.includes('preview'));
+});
 
 async function setup(options = {}) {
     const f = createFixture();
@@ -13,7 +52,8 @@ async function setup(options = {}) {
     };
     const state = {};
     const calls = [];
-    const generated = JSON.stringify({
+    const events = [];
+    const generated = options.response ?? JSON.stringify({
         presetName: 'Generated',
         categories: f.settings.categories.map((category, index) => ({
             ...category,
@@ -51,6 +91,16 @@ async function setup(options = {}) {
         console: { warn() {}, error() {} },
     });
     const workflow = createMasterWorkflow({
+        sceneEditor: createSceneEditController({
+            getSettings: () => f.settings, getContext: () => ({ chat: [{ name: 'Actor', mes: 'Recent event' }] }), draftState: f.draftState,
+            preview: async (_, changes) => {
+                events.push('preview');
+                assert.equal(events[events.length - 2], 'hide');
+                if (options.changeDuringPreview) f.settings.directives[0].value = 95;
+                if (options.abortDuringPreview) state.masterAbortController.abort('Cancelled');
+                return options.cancelPreview ? [] : changes;
+            },
+        }),
         draftState: f.draftState,
         abortMasterGeneration: (reason) => state.masterAbortController?.abort(reason),
         constants: {
@@ -59,7 +109,7 @@ async function setup(options = {}) {
             MASTER_STATUS_TIMEOUT_MS: 30000, MASTER_STRUCTURED_MIN_TEMPERATURE: 0.45,
             MASTER_STRUCTURED_MIN_TOKENS: 5000,
         },
-        getContext: () => ({ ChatCompletionService: {
+        getContext: () => ({ loader: { show: () => { events.push('show'); return { hide: async () => events.push('hide') }; } }, ChatCompletionService: {
             processRequest: async (payload) => { calls.push({ type: 'main', payload }); return { content: generated }; },
         } }),
         getMasterSettings: () => master,
@@ -67,13 +117,13 @@ async function setup(options = {}) {
             ...model, getCategories: () => f.settings.categories, getDirectives: () => f.settings.directives,
             masterMinimumCategoryCount: 3, masterMinimumDirectiveCount: 5,
         }),
-        masterPromptBuilder: { buildMasterMessages: () => ({ sourceText: 'Synthetic character', systemPrompt: 'System', userPrompt: 'User' }) },
+        masterPromptBuilder: { getResolvedMasterContext: () => 'Synthetic character', buildMasterMessages: () => ({ sourceText: 'Synthetic character', systemPrompt: 'System', userPrompt: 'User' }) },
         normalizeBaseUrl: (url) => String(url || '').replace(/\/+$/, ''),
         notify: (...args) => f.messages.push(args), presetManager: f.manager,
         renderDirectorHud() {}, renderMasterControls() {}, renderPresetsDropdown() {},
         saveSettingsDebounced() {}, state, updateDirectorPrompt() {},
     });
-    return { ...f, master, state, calls, workflow };
+    return { ...f, master, state, calls, workflow, events };
 }
 
 test('custom failure stays on selected connection by default and keeps the draft/library', async () => {

@@ -913,6 +913,51 @@
     margin-top: 8px;
 }
 
+.bb-dir-master-request-wrap > * + * {
+    margin-top: 8px;
+}
+
+.bb-dir-master-context-field {
+    font-size: 12px;
+}
+
+.bb-dir-lock[aria-pressed="true"] {
+    color: var(--bb-dir-accent);
+    border-color: var(--bb-dir-accent);
+}
+
+.bb-dir-level-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bb-dir-level-controls .bb-dir-lock {
+    min-width: 32px;
+    width: 32px;
+    padding: 0;
+}
+
+.bb-dir-change-preview {
+    text-align: left;
+}
+
+.bb-dir-change-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+    cursor: pointer;
+}
+
+.bb-dir-change-row > span {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+    overflow-wrap: anywhere;
+}
+
 #bb-director-toggle:focus-visible,
 #bb-director-hud :is(button, input, select, textarea):focus-visible {
     outline: 2px solid var(--bb-dir-accent);

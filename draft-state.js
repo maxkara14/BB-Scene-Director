@@ -23,7 +23,7 @@ export function createDraftState({ getSettings, getScope = () => '', historyLimi
     function contentSignature(categories, items) {
         return JSON.stringify({
             categories: categories.map(({ id, label, promptLabel, hint }) => ({ id, label, promptLabel, hint })),
-            items: items.map(({ name, category, value, active }) => ({ name, category, value, active: active !== false })),
+            items: items.map(({ name, category, value, active, locked }) => ({ name, category, value, active: active !== false, locked: locked === true })),
         });
     }
 

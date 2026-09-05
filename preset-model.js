@@ -284,6 +284,7 @@ export function createDirective(raw = {}, categories = getDefaultCategories()) {
         name: String(raw.name || 'Новая директива').trim() || 'Новая директива',
         value: snapDirectiveValue(raw.value),
         active: Boolean(raw.active),
+        locked: raw.locked === true,
         category: normalizeCategoryId(raw.category || guessDirectiveCategory(raw.name, categories), categories),
     };
 }
@@ -331,6 +332,7 @@ export function createPresetItemFromDirective(directive) {
         category: directive.category,
         value: directive.value,
         active: directive.active !== false,
+        locked: directive.locked === true,
     };
 }
 
@@ -353,6 +355,7 @@ export function normalizePresetItem(raw, directivesByName = new Map(), categorie
         category: normalizeCategoryId(raw.category || directiveByName?.category || guessDirectiveCategory(name, categories), categories),
         value: snapDirectiveValue(raw.value),
         active: raw.active !== false,
+        locked: raw.locked === true,
     };
 }
 

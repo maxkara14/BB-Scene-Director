@@ -30,6 +30,7 @@ import { createPresetTransferController } from './preset-transfer.js';
 import { createMasterPresetParser } from './master-preset-parser.js';
 import { createMasterPromptBuilder } from './master-prompts.js';
 import { createMasterWorkflow } from './master-workflow.js';
+import { createSceneEditController } from './scene-edit.js';
 import { createSceneDirectorUiController } from './director-ui.js';
 import { createDraftState } from './draft-state.js';
 import { createChatState } from './chat-state.js';
@@ -365,6 +366,7 @@ const presetManager = createPresetManager({
 });
 
 const masterWorkflow = createMasterWorkflow({
+    sceneEditor: createSceneEditController({ getSettings, getContext: () => SillyTavern.getContext(), draftState }),
     abortMasterGeneration,
     draftState,
     constants: {

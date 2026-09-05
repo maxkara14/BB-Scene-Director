@@ -194,7 +194,10 @@ export function createSceneDirectorUiController({
             `<span class="bb-dir-slider-value">${directive.value}%</span>`,
             '</div>',
             '<div class="bb-dir-card-foot">',
+            '<div class="bb-dir-level-controls">',
             `<span class="bb-dir-level-pill">${escapeHtml(getIntensityLabel(directive.value))}</span>`,
+            `<button class="bb-dir-btn interactable bb-dir-lock" aria-pressed="${directive.locked === true}" title="${directive.locked ? 'Разрешить мастеру менять директиву' : 'Защитить директиву от изменений мастером'}"><i class="fa-solid ${directive.locked ? 'fa-lock' : 'fa-lock-open'}"></i></button>`,
+            '</div>',
             `<select class="bb-dir-category-select bb-dir-input" title="Категория">${renderCategoryOptions(directive.category)}</select>`,
             '</div>',
             '</article>',
@@ -360,7 +363,7 @@ export function createSceneDirectorUiController({
             if (state.masterChecking) {
                 status.addClass('is-busy').text('Проверяю подключение...');
             } else if (state.masterGenerating) {
-                status.addClass('is-busy').text('Собираю пресет...');
+                status.addClass('is-busy').text('Мастер готовит результат...');
             } else if (master.statusLevel === 'idle' && availability.label) {
                 status.addClass('is-idle').text(`Для генерации будет использовано: ${availability.label}.`);
             } else {
@@ -429,6 +432,12 @@ export function createSceneDirectorUiController({
                 && availability.available;
 
             generateButton.prop('disabled', !canGenerate);
+            const editing = $('#bb-dir-master-action').val() === 'edit';
+            generateButton.find('span').text(editing ? 'Предложить изменения' : 'Сгенерировать пресет');
+            $('#bb-dir-master-context-field').toggle(editing);
+            $('#bb-dir-master-request').attr('placeholder', editing
+                ? 'Что изменить в сцене? Например: усиль напряжение, сохрани медленный темп.'
+                : 'Опишите желаемый стиль: больше хоррора, романтика, экшен...');
         }
 
         return;
@@ -609,6 +618,19 @@ export function createSceneDirectorUiController({
                                     </button>
                                 </div>
                                 <div class="bb-dir-master-request-wrap">
+                                    <select id="bb-dir-master-action" class="bb-dir-input" aria-label="Действие мастера">
+                                        <option value="new">Новый пресет</option>
+                                        <option value="edit">Изменить текущую сцену</option>
+                                    </select>
+                                    <label id="bb-dir-master-context-field" class="bb-dir-master-context-field" style="display: none">
+                                        Контекст чата
+                                        <select id="bb-dir-master-context" class="bb-dir-input">
+                                            <option value="0">Без сообщений</option>
+                                            <option value="5">5 сообщений</option>
+                                            <option value="10" selected>10 сообщений</option>
+                                            <option value="20">20 сообщений</option>
+                                        </select>
+                                    </label>
                                     <textarea id="bb-dir-master-request" class="bb-dir-input bb-dir-master-request" rows="2" placeholder="Опишите желаемый стиль: больше хоррора, романтика, экшен..."></textarea>
                                 </div>
                                 <div class="bb-dir-master-actions">
@@ -693,6 +715,14 @@ export function createSceneDirectorUiController({
                 sectionList.toggleClass('is-closed', !nextExpanded);
                 sectionList.attr('aria-hidden', nextExpanded ? 'false' : 'true');
                 sectionList.prop('inert', !nextExpanded);
+            })
+            .on('click', '.bb-dir-lock', function onLockDirective() {
+                const directive = findDirectiveByCard(this);
+                if (!directive) return;
+                draftState.checkpoint();
+                directive.locked = !directive.locked;
+                saveSettingsDebounced();
+                renderDirectorHud();
             })
             .on('input', '.bb-dir-slider', function onSliderInput() {
                 const directive = findDirectiveByCard(this);
@@ -915,8 +945,12 @@ export function createSceneDirectorUiController({
 
         $('#bb-dir-master-generate').on('click', function onGenerateMaster() {
             const userRequest = String($('#bb-dir-master-request').val() || '').trim();
-            void masterWorkflow.generateMasterPreset(userRequest);
+            void masterWorkflow.generateMasterPreset(userRequest, {
+                mode: $('#bb-dir-master-action').val() === 'edit' ? 'edit' : 'new',
+                messageCount: Number($('#bb-dir-master-context').val() ?? 10),
+            });
         });
+        $('#bb-dir-master-action').on('change', renderMasterControls);
 
         renderPresetsDropdown();
         renderDirectorHud();

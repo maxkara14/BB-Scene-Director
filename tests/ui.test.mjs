@@ -9,6 +9,7 @@ async function setupUi() {
     const elements = new Map();
     const handlers = new Map();
     const exports = [];
+    const generations = [];
     let promptUpdates = 0;
     function $(selector) {
         if (typeof selector !== 'string') return selector;
@@ -48,7 +49,7 @@ async function setupUi() {
         groupDirectivesByCategory: (items) => new Map(f.settings.categories.map((category) => [category.id, items.filter((item) => item.category === category.id)])),
         escapeHtml: (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
         normalizeBaseUrl: (value) => value,
-        masterWorkflow: { getGenerationAvailability: () => ({ available: false }), getSupportedMasterProfiles: () => [], getMasterProfileLabel: () => '' },
+        masterWorkflow: { generateMasterPreset: (...args) => generations.push(args), getGenerationAvailability: () => ({ available: false }), getSupportedMasterProfiles: () => [], getMasterProfileLabel: () => '' },
         notify() {}, saveSettingsDebounced() {}, presetManager: f.manager,
         presetTransfer: {
             handleExportPreset: (source) => exports.push(source),
@@ -60,7 +61,7 @@ async function setupUi() {
     });
     ui.setupExtensionSettings();
     ui.ensureDirectorHud();
-    return { ...f, $, ui, handlers, exports, promptUpdates: () => promptUpdates };
+    return { ...f, $, ui, handlers, exports, generations, promptUpdates: () => promptUpdates };
 }
 
 test('UI registers distinct export actions and persists an explicit fallback checkbox', async () => {
@@ -75,6 +76,24 @@ test('UI registers distinct export actions and persists an explicit fallback che
     checkbox.checked = false;
     f.handlers.get('#bb-dir-master-fallback:change:').call(checkbox);
     assert.equal(f.settings.masterPreset.allowMainFallback, false);
+});
+
+test('edit controls dispatch selected context and lock toggling is undoable', async () => {
+    const f = await setupUi();
+    f.$('#bb-dir-master-action').val('edit');
+    f.$('#bb-dir-master-context').val('5');
+    f.$('#bb-dir-master-request').val('Raise tension');
+    f.handlers.get('#bb-dir-master-action:change:')();
+    f.handlers.get('#bb-dir-master-generate:click:')();
+    assert.equal(f.generations[0][0], 'Raise tension');
+    assert.equal(f.generations[0][1].mode, 'edit');
+    assert.equal(f.generations[0][1].messageCount, 5);
+    const button = { closest: () => ({ data: () => 'original' }) };
+    f.handlers.get('#bb-dir-list:click:.bb-dir-lock').call(button);
+    assert.equal(f.settings.directives[0].locked, true);
+    assert.equal(f.draftState.getStatus().dirty, true);
+    f.draftState.undo();
+    assert.equal(f.settings.directives[0].locked, false);
 });
 
 test('slider handler, undo, and redo update scene values, dirty status, and prompt', async () => {

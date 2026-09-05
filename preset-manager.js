@@ -64,6 +64,7 @@ export function createPresetManager({
                         category: item.category,
                         value: item.value,
                         active: item.active,
+                        locked: item.locked,
                     });
                 } else {
                     directive = {
@@ -72,6 +73,7 @@ export function createPresetManager({
                         category: item.category,
                         value: item.value,
                         active: item.active !== false,
+                        locked: item.locked === true,
                     };
                 }
 
