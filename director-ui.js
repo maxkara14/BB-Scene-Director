@@ -22,8 +22,30 @@ export function createSceneDirectorUiController({
     schedulePromptUpdate,
     snapDirectiveValue,
     state,
+    temporaryDirection,
     updateDirectorPrompt,
 }) {
+    let temporaryScope = null;
+    let temporaryId = null;
+
+    function renderTemporaryDirection() {
+        const context = getContext();
+        const scope = JSON.stringify([context.chatId, context.groupId ?? context.characterId]);
+        const note = getSettings().temporaryDirection;
+        if (scope !== temporaryScope || note?.id !== temporaryId) {
+            $('#bb-dir-temporary-text').val(note?.text || '');
+            $('#bb-dir-temporary-duration').val(String(note?.duration ?? (note ? 0 : 1)));
+            temporaryScope = scope;
+            temporaryId = note?.id;
+        }
+        const active = note?.enabled && (note.remaining === null || note.remaining > 0);
+        const status = !note ? 'не задано' : !note.enabled ? 'отключено'
+            : note.remaining === 0 ? 'завершено'
+                : note.remaining === null ? 'до отключения' : `осталось ходов: ${note.remaining}`;
+        $('#bb-dir-temporary-status').text(`${getSettings().paused && active ? 'на паузе · ' : ''}${status}`);
+        $('#bb-dir-temporary-stop').prop('disabled', !note?.enabled);
+    }
+
     function renderPresetsDropdown() {
         const select = $('#bb-dir-preset-select');
         if (!select.length) {
@@ -274,6 +296,7 @@ export function createSceneDirectorUiController({
         updatePauseButtonState();
         renderPreviewToggleState();
         renderDraftStatus();
+        renderTemporaryDirection();
         requestAnimationFrame(revealDirectiveCardIfNeeded);
     }
 
@@ -650,6 +673,28 @@ export function createSceneDirectorUiController({
                         <button id="bb-dir-redo" type="button" class="bb-dir-btn interactable" disabled title="Повторить изменение сцены">Повторить</button>
                     </div>
                 </div>
+                <div class="bb-dir-temporary is-collapsed">
+                    <button type="button" id="bb-dir-temporary-toggle" class="bb-dir-temporary-toggle" aria-expanded="false" aria-controls="bb-dir-temporary-body">
+                        <span>Временное указание <span id="bb-dir-temporary-status" role="status"></span></span>
+                        <i class="fa-solid fa-chevron-down bb-dir-temporary-arrow" aria-hidden="true"></i>
+                    </button>
+                    <div id="bb-dir-temporary-body" class="bb-dir-temporary-body" aria-hidden="true" inert>
+                    <div class="bb-dir-temporary-inner">
+                        <textarea id="bb-dir-temporary-text" class="bb-dir-input" rows="2" maxlength="2000" aria-label="Временное указание" placeholder="Например: пусть раздастся стук в дверь"></textarea>
+                        <select id="bb-dir-temporary-duration" class="bb-dir-input" aria-label="Срок указания">
+                            <option value="1">На 1 ход</option>
+                            <option value="3">На 3 хода</option>
+                            <option value="5">На 5 ходов</option>
+                            <option value="0">До ручного отключения</option>
+                        </select>
+                        <small>Ход начинается твоим сообщением и заканчивается следующим. Рероллы срок не расходуют.</small>
+                        <div class="bb-dir-temporary-actions">
+                            <button id="bb-dir-temporary-arm" class="bb-dir-btn" type="button">Применить</button>
+                            <button id="bb-dir-temporary-stop" class="bb-dir-btn" type="button">Отключить</button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
                 <div id="bb-dir-list"></div>
 
                 <div class="bb-dir-footer" id="bb-dir-footer">
@@ -951,6 +996,20 @@ export function createSceneDirectorUiController({
             });
         });
         $('#bb-dir-master-action').on('change', renderMasterControls);
+        $('#bb-dir-temporary-arm').on('click', () => {
+            const duration = Number($('#bb-dir-temporary-duration').val());
+            if (!temporaryDirection.arm(String($('#bb-dir-temporary-text').val() || ''), duration || null)) {
+                notify('warning', 'Введи временное указание в открытом чате.');
+            }
+        });
+        $('#bb-dir-temporary-stop').on('click', () => temporaryDirection.stop());
+        $('#bb-dir-temporary-toggle').on('click', () => {
+            const block = $('.bb-dir-temporary');
+            const expanded = block.hasClass('is-collapsed');
+            block.toggleClass('is-collapsed', !expanded);
+            $('#bb-dir-temporary-toggle').attr('aria-expanded', String(expanded));
+            $('#bb-dir-temporary-body').attr('aria-hidden', String(!expanded)).prop('inert', !expanded);
+        });
 
         renderPresetsDropdown();
         renderDirectorHud();
@@ -1010,6 +1069,7 @@ export function createSceneDirectorUiController({
         ensureDirectorHud,
         renderDirectorHud,
         renderDraftStatus,
+        renderTemporaryDirection,
         renderMasterControls,
         renderPresetsDropdown,
         setupExtensionSettings,

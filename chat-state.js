@@ -5,6 +5,7 @@ import {
     normalizeDirectives,
     normalizeExpandedCategories,
 } from './preset-model.js';
+import { normalizeTemporaryDirection } from './temporary-direction.js';
 
 const METADATA_KEY = 'BB-Scene-Director';
 
@@ -34,6 +35,7 @@ export function createChatState({ getSettings, getContext, createPresetRecord, g
             categories: settings.categories,
             expandedCategories: settings.expandedCategories,
             paused: settings.paused,
+            temporaryDirection: settings.temporaryDirection || null,
             presetId: settings.presets[settings.lastActivePreset]?.id || null,
         });
     }
@@ -47,6 +49,7 @@ export function createChatState({ getSettings, getContext, createPresetRecord, g
         settings.categories = categories;
         settings.expandedCategories = normalizeExpandedCategories(raw.expandedCategories, categories);
         settings.paused = raw.paused === true;
+        settings.temporaryDirection = normalizeTemporaryDirection(raw.temporaryDirection);
         const index = settings.presets.findIndex((preset) => preset.id === raw.presetId);
         settings.lastActivePreset = index >= 0 ? index : null;
     }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createChatState } from '../chat-state.js';
 import { createDraftState } from '../draft-state.js';
 import { createFixture } from './helpers.mjs';
+import { normalizeTemporaryDirection } from '../temporary-direction.js';
 
 function setup() {
     const f = createFixture();
@@ -69,6 +70,26 @@ test('per-chat edits persist independently and leave other metadata intact', () 
     assert.equal(f.context().chatMetadata.anotherExtension, 'preserve');
     f.open('B'); f.controller.activate();
     assert.equal(f.settings.paused, true);
+});
+
+test('temporary direction text and spent duration restore per chat and survive a fresh controller', () => {
+    const f = setup();
+    f.controller.activate();
+    f.settings.temporaryDirection = normalizeTemporaryDirection({ text: 'Knock', duration: 3, remaining: 2, countBy: 'user-turn', turnStarted: true, lastUserKey: 'saved-user-message' });
+    f.controller.save();
+    f.open('B'); f.controller.activate();
+    assert.equal(f.settings.temporaryDirection, null);
+    f.open('A'); f.controller.activate();
+    assert.equal(f.settings.temporaryDirection.remaining, 2);
+    const fresh = createChatState({
+        getSettings: () => f.settings, getContext: f.context,
+        createPresetRecord: f.transfer.createPresetRecord, getUniquePresetName: (name) => name,
+        saveGlobalSettings() {}, notify() {},
+    });
+    f.settings.temporaryDirection = null;
+    fresh.activate();
+    assert.equal(f.settings.temporaryDirection.text, 'Knock');
+    assert.equal(f.settings.temporaryDirection.lastUserKey, 'saved-user-message');
 });
 
 test('chat identity distinguishes characters, groups, and chats of the same character', () => {

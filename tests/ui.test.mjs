@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as model from '../preset-model.js';
 import { createFixture, loadWithHostMocks } from './helpers.mjs';
+import { createTemporaryDirectionController } from '../temporary-direction.js';
 
 async function setupUi() {
     const f = createFixture();
@@ -41,7 +42,12 @@ async function setupUi() {
         document: { getElementById: () => null, querySelector: () => ({ insertAdjacentHTML() {} }) },
     });
     let ui;
+    const temporaryDirection = createTemporaryDirectionController({
+        getSettings: () => f.settings, getContext: () => ({ chat: [] }), isCurrentChat: () => true,
+        save() {}, changed: () => ui.renderTemporaryDirection(),
+    });
     ui = createSceneDirectorUiController({
+        temporaryDirection,
         ...model, draftState: f.draftState,
         getSettings: () => f.settings, getCategories: () => f.settings.categories,
         getContext: () => ({}),
@@ -94,6 +100,35 @@ test('edit controls dispatch selected context and lock toggling is undoable', as
     assert.equal(f.draftState.getStatus().dirty, true);
     f.draftState.undo();
     assert.equal(f.settings.directives[0].locked, false);
+});
+
+test('temporary form arms the chosen duration, preserves unsubmitted text on rerender, and stops safely', async () => {
+    const f = await setupUi();
+    f.$('#bb-dir-temporary-text').val('<img src=x onerror=alert(1)>');
+    f.$('#bb-dir-temporary-duration').val('3');
+    f.handlers.get('#bb-dir-temporary-arm:click:')();
+    assert.equal(f.settings.temporaryDirection.remaining, 3);
+    assert.equal(f.settings.temporaryDirection.text, '<img src=x onerror=alert(1)>');
+    f.$('#bb-dir-temporary-text').val('Unsubmitted edit');
+    f.ui.renderDirectorHud();
+    assert.equal(f.$('#bb-dir-temporary-text').val(), 'Unsubmitted edit');
+    f.handlers.get('#bb-dir-temporary-stop:click:')();
+    assert.equal(f.settings.temporaryDirection.enabled, false);
+});
+
+test('temporary section toggles keyboard access and expanded state without losing input', async () => {
+    const f = await setupUi();
+    const block = f.$('.bb-dir-temporary');
+    block.classes.add('is-collapsed');
+    f.$('#bb-dir-temporary-text').val('Pending text');
+    const toggle = f.handlers.get('#bb-dir-temporary-toggle:click:');
+    toggle();
+    assert.equal(f.$('#bb-dir-temporary-toggle').attributes['aria-expanded'], 'true');
+    assert.equal(f.$('#bb-dir-temporary-body').properties.inert, false);
+    toggle();
+    assert.equal(f.$('#bb-dir-temporary-toggle').attributes['aria-expanded'], 'false');
+    assert.equal(f.$('#bb-dir-temporary-body').properties.inert, true);
+    assert.equal(f.$('#bb-dir-temporary-text').val(), 'Pending text');
 });
 
 test('slider handler, undo, and redo update scene values, dirty status, and prompt', async () => {
