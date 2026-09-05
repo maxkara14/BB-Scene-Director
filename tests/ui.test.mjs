@@ -4,7 +4,7 @@ import * as model from '../preset-model.js';
 import { createFixture, loadWithHostMocks } from './helpers.mjs';
 import { createTemporaryDirectionController } from '../temporary-direction.js';
 
-async function setupUi() {
+async function setupUi(options = {}) {
     const f = createFixture();
     f.settings.masterPreset = { connectionMode: 'custom', availableModels: [], apiKey: '', url: '', model: '', allowMainFallback: false };
     const elements = new Map();
@@ -57,6 +57,7 @@ async function setupUi() {
         normalizeBaseUrl: (value) => value,
         masterWorkflow: { generateMasterPreset: (...args) => generations.push(args), getGenerationAvailability: () => ({ available: false }), getSupportedMasterProfiles: () => [], getMasterProfileLabel: () => '' },
         notify() {}, saveSettingsDebounced() {}, presetManager: f.manager,
+        promptText: options.promptText,
         presetTransfer: {
             handleExportPreset: (source) => exports.push(source),
             createImportFileInput: () => ({ addEventListener() {} }),
@@ -69,6 +70,63 @@ async function setupUi() {
     ui.ensureDirectorHud();
     return { ...f, $, ui, handlers, exports, generations, promptUpdates: () => promptUpdates };
 }
+
+test('description editor escapes markup, updates the prompt and participates in undo', async () => {
+    const f = await setupUi();
+    const field = f.$('description-field');
+    const beforeUpdates = f.promptUpdates();
+    const card = { data: () => 'original' };
+    field.closest = (selector) => selector === '.bb-dir-card' ? card : f.$('description-editor');
+    field.val('  </textarea><script>alert(1)</script>  ');
+    const change = f.handlers.get('#bb-dir-list:change:.bb-dir-description');
+    change.call(field);
+    assert.equal(f.settings.directives[0].description, '</textarea><script>alert(1)</script>');
+    assert.equal(f.draftState.getStatus().dirty, true);
+    assert.equal(f.promptUpdates(), beforeUpdates + 1);
+    f.ui.renderDirectorHud();
+    const markup = f.$('#bb-dir-list').content;
+    assert.match(markup, /&lt;\/textarea&gt;&lt;script&gt;/);
+    assert.doesNotMatch(markup, /<script>/);
+    change.call(field);
+    assert.equal(f.promptUpdates(), beforeUpdates + 1);
+    f.draftState.undo();
+    assert.equal(f.settings.directives[0].description, '');
+});
+
+test('category hint editing saves text, tracks dirty state and undo, and clears built-in hints', async () => {
+    let answer = '<b>Panel help</b>';
+    const f = await setupUi({ promptText: async () => answer });
+    const original = f.settings.categories[0].hint;
+    const updates = f.promptUpdates();
+    const edit = () => f.handlers.get('#bb-dir-list:click:.bb-dir-section-edit-hint').call({ data: () => 'focus' });
+    await edit();
+    assert.equal(f.settings.categories[0].hint, answer);
+    assert.match(f.$('#bb-dir-list').content, /&lt;b&gt;Panel help&lt;\/b&gt;/);
+    assert.equal(f.draftState.getStatus().dirty, true);
+    assert.equal(f.promptUpdates(), updates);
+    f.draftState.undo();
+    assert.equal(f.settings.categories[0].hint, original);
+    f.draftState.redo();
+    assert.equal(f.settings.categories[0].hint, answer);
+    answer = '';
+    await edit();
+    const preset = model.normalizePreset(f.transfer.getExportPresetSnapshot('draft'));
+    assert.equal(preset.categories[0].hint, '');
+    f.manager.applyPresetItems(preset.items, { replaceCategories: true, categories: preset.categories });
+    assert.equal(f.settings.categories[0].hint, '');
+    assert.ok(model.createCategoryRecord({ id: 'focus' }).hint);
+});
+
+test('cancelled or stale category hint dialogs preserve the scene', async () => {
+    let resolve;
+    const f = await setupUi({ promptText: () => new Promise((done) => { resolve = done; }) });
+    const original = f.settings.categories[0].hint;
+    const edit = () => f.handlers.get('#bb-dir-list:click:.bb-dir-section-edit-hint').call({ data: () => 'focus' });
+    let pending = edit(); resolve(null); await pending;
+    assert.equal(f.draftState.getStatus().canUndo, false);
+    pending = edit(); f.settings.directives[0].value = 90; resolve('Too late'); await pending;
+    assert.equal(f.settings.categories[0].hint, original);
+});
 
 test('UI registers distinct export actions and persists an explicit fallback checkbox', async () => {
     const f = await setupUi();

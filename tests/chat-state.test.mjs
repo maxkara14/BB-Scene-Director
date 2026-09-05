@@ -57,6 +57,7 @@ test('per-chat edits persist independently and leave other metadata intact', () 
     f.controller.activate();
     f.settings.directives[0].value = 95;
     f.settings.directives[0].locked = true;
+    f.settings.directives[0].description = 'Let silences build tension';
     f.settings.expandedCategories.focus = true;
     f.controller.save();
     f.open('B'); f.controller.activate();
@@ -65,6 +66,7 @@ test('per-chat edits persist independently and leave other metadata intact', () 
     f.open('A'); f.controller.activate();
     assert.equal(f.settings.directives[0].value, 95);
     assert.equal(f.settings.directives[0].locked, true);
+    assert.equal(f.settings.directives[0].description, 'Let silences build tension');
     assert.equal(f.settings.paused, false);
     assert.equal(f.settings.expandedCategories.focus, true);
     assert.equal(f.context().chatMetadata.anotherExtension, 'preserve');

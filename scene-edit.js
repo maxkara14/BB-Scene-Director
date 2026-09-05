@@ -42,12 +42,14 @@ export function parseSceneChanges(raw, snapshot) {
             const item = change.directive;
             if (!item || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 160
                 || !categoryIds.has(item.category) || !Number.isInteger(item.value)
-                || item.value < 0 || item.value > 100 || item.value % 5 !== 0 || typeof item.active !== 'boolean') {
+                || item.value < 0 || item.value > 100 || item.value % 5 !== 0 || typeof item.active !== 'boolean'
+                || (item.description !== undefined && (typeof item.description !== 'string' || item.description.length > 1000))) {
                 throw new Error('Некорректные поля директивы в изменениях. Сцена сохранена.');
             }
-            after = createDirective({ ...item, id: before?.id, locked: false }, snapshot.categories);
+            after = createDirective({ ...item, description: item.description ?? before?.description, id: before?.id, locked: false }, snapshot.categories);
         }
-        if (before && after && ['name', 'category', 'value', 'active'].every((key) => before[key] === after[key])) continue;
+        if (before && after && ['name', 'category', 'value', 'active'].every((key) => before[key] === after[key])
+            && (before.description || '') === after.description) continue;
         changes.push({ op: change.op, before, after });
     }
     return changes;
@@ -64,7 +66,7 @@ export async function showSceneChanges(context, changes, categories) {
     root.append(hint);
     const categoryNames = new Map(categories.map((category) => [category.id, category.label]));
     const describe = (item) => item
-        ? `${item.name} · ${item.value}% · ${item.active ? 'включена' : 'выключена'} · ${categoryNames.get(item.category) || item.category}`
+        ? `${item.name} · ${item.value}% · ${item.active ? 'включена' : 'выключена'} · ${categoryNames.get(item.category) || item.category}${item.description ? ` · Описание: ${item.description}` : ''}`
         : '—';
     const inputs = changes.map((change) => {
         const row = document.createElement('label');
@@ -110,6 +112,7 @@ export function createSceneEditController({ getSettings, getContext, draftState,
                 'Never modify or delete locked directives. Use existing category ids only; do not restructure categories.',
                 'Use update/delete with the exact existing id; add has no id. Never repeat an id.',
                 'Updates include the complete directive. Preserve fields the request does not affect, including active and value.',
+                'A directive may include description: a string up to 1000 characters explaining its effect. Preserve existing descriptions unless asked to change them; an empty string explicitly clears one.',
                 'Values are integers 0..100 in steps of 5. No minimum number of changes; an empty list is valid.',
                 'Schema: {"changes":[{"op":"update","id":"existing-id","directive":{"name":"name","category":"category-id","value":70,"active":true}},{"op":"delete","id":"existing-id"},{"op":"add","directive":{"name":"name","category":"category-id","value":65,"active":true}}]}',
             ].join('\n'),

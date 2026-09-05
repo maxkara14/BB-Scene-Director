@@ -1,3 +1,5 @@
+import { normalizeDirectiveDescription } from './preset-model.js';
+
 export function createSceneDirectorUiController({
     createCategoryRecord,
     createDirective,
@@ -222,6 +224,10 @@ export function createSceneDirectorUiController({
             '</div>',
             `<select class="bb-dir-category-select bb-dir-input" title="Категория">${renderCategoryOptions(directive.category)}</select>`,
             '</div>',
+            '<details class="bb-dir-description-editor">',
+            `<summary>${directive.description ? 'Описание' : 'Добавить описание'}</summary>`,
+            `<textarea class="bb-dir-description bb-dir-input" rows="3" maxlength="1000" aria-label="Описание директивы" placeholder="Как эта директива должна влиять на сцену? Необязательно, до 1000 символов.">${escapeHtml(directive.description || '')}</textarea>`,
+            '</details>',
             '</article>',
         ].join('');
     }
@@ -277,6 +283,7 @@ export function createSceneDirectorUiController({
                 '</button>',
                 '<div class="bb-dir-section-actions">',
                 `<button class="bb-dir-btn interactable bb-dir-section-add" data-category-id="${escapeHtml(category.id)}" title="Добавить в секцию"><i class="fa-solid fa-plus"></i></button>`,
+                `<button type="button" class="bb-dir-btn interactable bb-dir-section-edit-hint" data-category-id="${escapeHtml(category.id)}" title="Изменить описание группы" aria-label="Изменить описание группы"><i class="fa-solid fa-pen"></i></button>`,
             `<button class="bb-dir-btn interactable bb-dir-section-delete${canDeleteCategory ? '' : ' is-disabled'}" data-category-id="${escapeHtml(category.id)}" title="Удалить категорию"${canDeleteCategory ? '' : ' disabled'}><i class="fa-solid fa-trash"></i></button>`,
             '</div>',
             '</div>',
@@ -827,6 +834,18 @@ export function createSceneDirectorUiController({
                 saveSettingsDebounced();
                 updateDirectorPrompt();
             })
+            .on('change', '.bb-dir-description', function onDescriptionChange() {
+                const directive = findDirectiveByCard(this);
+                if (!directive) return;
+                const description = normalizeDirectiveDescription($(this).val());
+                $(this).val(description);
+                if (description === (directive.description || '')) return;
+                draftState.checkpoint();
+                directive.description = description;
+                $(this).closest('.bb-dir-description-editor').find('summary').text(description ? 'Описание' : 'Добавить описание');
+                saveSettingsDebounced();
+                updateDirectorPrompt();
+            })
             .on('change', '.bb-dir-category-select', function onCategoryChange() {
                 const directive = findDirectiveByCard(this);
                 if (!directive) {
@@ -857,6 +876,26 @@ export function createSceneDirectorUiController({
                 saveSettingsDebounced();
                 renderDirectorHud();
                 updateDirectorPrompt();
+            })
+            .on('click', '.bb-dir-section-edit-hint', async function onEditCategoryHint() {
+                const id = String($(this).data('categoryId') || '');
+                const category = getCategories().find((item) => item.id === id);
+                if (!category) return;
+                const signature = draftState.getSignature();
+                const hint = await promptText('Описание группы — подсказка в панели, не добавляется в промпт:', category.hint, {
+                    rows: 4, okButton: 'Сохранить', cancelButton: 'Отмена',
+                });
+                if (hint === null) return;
+                if (draftState.getSignature() !== signature) {
+                    notify('warning', 'Чат или сцена изменились. Повтори редактирование описания в текущей сцене.');
+                    return;
+                }
+                const nextHint = String(hint).trim();
+                if (nextHint === category.hint) return;
+                draftState.checkpoint();
+                category.hint = nextHint;
+                saveSettingsDebounced();
+                renderDirectorHud();
             })
             .on('click', '.bb-dir-section-delete', function onSectionDelete() {
                 const categoryId = String($(this).data('categoryId') || '').trim();

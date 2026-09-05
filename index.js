@@ -604,6 +604,9 @@ function getDirectorPromptText() {
 
         directives.forEach((directive) => {
             lines.push(`- ${directive.name}: ${directive.value}% ${getIntensityPromptHint(directive.value)}`);
+            if (directive.description) {
+                lines.push(`  Description: ${directive.description.replace(/\s+/g, ' ')}`);
+            }
         });
     });
 

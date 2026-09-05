@@ -68,6 +68,11 @@ export function createMasterPromptBuilder({
                                             minLength: 1,
                                             maxLength: 60,
                                         },
+                                        description: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            maxLength: 1000,
+                                        },
                                         value: {
                                             type: 'integer',
                                             minimum: 5,
@@ -79,7 +84,7 @@ export function createMasterPromptBuilder({
                                             enum: [true],
                                         },
                                     },
-                                    required: ['name', 'value', 'active'],
+                                    required: ['name', 'description', 'value', 'active'],
                                     additionalProperties: false,
                                 },
                             },
@@ -158,7 +163,7 @@ export function createMasterPromptBuilder({
         const lines = [
             'You are a scene-directing preset generator for roleplay chats.',
             'Return JSON only. No markdown, no prose, no explanations.',
-            `Write presetName, category labels, category hints, and directive names in ${languageMeta.labelEn}.`,
+            `Write presetName, category labels, category hints, directive names and descriptions in ${languageMeta.labelEn}.`,
             'You may keep, remove, merge, rename, or add categories if it materially improves the preset.',
             'Return a complete preset tree in one response.',
         ];
@@ -173,6 +178,8 @@ export function createMasterPromptBuilder({
 
         lines.push(
             'Keep directive names short, reusable, concrete, and useful across several replies.',
+            'Give every directive a non-empty description: 1-2 concise sentences explaining how to express its effect in the reply, not merely repeating its name. Maximum 1000 characters.',
+            'Directive descriptions are sent to the roleplay model. Category hints are interface help only and are not included in the directing prompt.',
             'Use meaningful directive values from 55 to 90 in steps of 5.',
             'Do not use 0: generated directives must be active steering signals, not disabled placeholders.',
             'Avoid 50 unless the source clearly calls for a deliberately weak neutral influence.',
@@ -199,6 +206,7 @@ export function createMasterPromptBuilder({
             '      "directives": [',
             '        {',
             '          "name": "short directive name",',
+            '          "description": "how this directive should shape the reply",',
             '          "value": 70,',
             '          "active": true',
             '        }',
@@ -286,15 +294,16 @@ export function createMasterPromptBuilder({
         const systemPrompt = [
             'You create Scene Director directives for one category in a roleplay preset.',
             'Return plain text only. No JSON. No markdown. No explanations.',
-            `Write the directive name in ${languageMeta.labelEn}.`,
+            `Write the directive name and description in ${languageMeta.labelEn}.`,
             'Output exactly one directive in exactly one line in this format:',
-            `ITEM|${category.id}|70|short directive name`,
+            `ITEM|${category.id}|70|short directive name|true|concise directive description`,
             'Rules:',
             `- Use only the category "${category.id}".`,
             '- Return exactly one ITEM line.',
             '- Start immediately with ITEM| on the first line.',
             '- No preset name line.',
             '- Directive names must be short, concrete, reusable, and without quotes or pipe symbols.',
+            '- Include a non-empty description of how to express the directive in a reply: 1-2 concise sentences, at most 1000 characters, without pipe symbols or line breaks.',
             '- Values must be integers from 0 to 100 in steps of 5.',
             '- Prefer values from 55 to 90. Do not use 0 or 50 for generated directives.',
             '- Generated directives are always active; do not output inactive/off/false.',

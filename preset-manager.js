@@ -61,6 +61,7 @@ export function createPresetManager({
                     directive = createDirective({
                         id: item.directiveId || makeId('dir'),
                         name: item.name,
+                        description: item.description,
                         category: item.category,
                         value: item.value,
                         active: item.active,
@@ -70,6 +71,7 @@ export function createPresetManager({
                     directive = {
                         ...directive,
                         name: item.name,
+                        description: item.description,
                         category: item.category,
                         value: item.value,
                         active: item.active !== false,

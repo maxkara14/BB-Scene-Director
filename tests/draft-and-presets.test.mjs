@@ -3,6 +3,38 @@ import assert from 'node:assert/strict';
 import { createDraftState } from '../draft-state.js';
 import { parsePresetImportText, stringifyPresetFile } from '../preset-storage.js';
 import { createFixture } from './helpers.mjs';
+import { createDirective, normalizePreset } from '../preset-model.js';
+
+test('descriptions survive export, import and applying presets to new or matching directives', () => {
+    const f = createFixture();
+    f.settings.directives[0].description = 'Quiet pauses';
+    const exported = f.transfer.getExportPresetSnapshot('draft');
+    const imported = normalizePreset(parsePresetImportText(stringifyPresetFile(exported)).presets[0]);
+    for (const existing of [true, false]) {
+        if (!existing) f.settings.directives = [];
+        f.manager.applyPresetItems(imported.items);
+        assert.equal(f.settings.directives[0].description, 'Quiet pauses');
+    }
+    assert.equal(f.transfer.getExportPresetSnapshot('saved').items[0].description, '');
+    f.manager.applyPresetItems([{ name: 'Mood', value: 30, active: true }]);
+    assert.equal(f.settings.directives[0].description, '');
+    assert.equal(createDirective({ description: { bad: true } }).description, '');
+    assert.equal(createDirective({ description: 'x'.repeat(1200) }).description.length, 1000);
+});
+
+test('description-only edits are dirty and undoable, missing legacy descriptions equal empty ones', () => {
+    const f = createFixture();
+    delete f.settings.presets[0].items[0].description;
+    assert.equal(f.draftState.getStatus().dirty, false);
+    f.draftState.checkpoint();
+    f.settings.directives[0].description = 'More quiet pauses';
+    assert.equal(f.draftState.getStatus().dirty, true);
+    f.draftState.undo();
+    assert.equal(f.settings.directives[0].description, '');
+    assert.equal(f.draftState.getStatus().dirty, false);
+    f.draftState.redo();
+    assert.equal(f.settings.directives[0].description, 'More quiet pauses');
+});
 
 test('dirty state ignores generated IDs and tracks values, categories, and inactive directives', () => {
     const { settings, draftState } = createFixture();

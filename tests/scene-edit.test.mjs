@@ -16,6 +16,25 @@ function setup(preview = async (_, changes) => changes) {
     return { ...f, editor, context, signal: new AbortController().signal };
 }
 
+test('scene edits preserve omitted descriptions and allow explicit changes and clearing', async () => {
+    const f = setup();
+    f.settings.directives[0].description = 'Quiet pauses';
+    const request = f.editor.prepare('Edit', 10);
+    assert.match(request.userPrompt, /Quiet pauses/);
+    assert.equal(f.editor.parse(response(update), request)[0].after.description, 'Quiet pauses');
+    for (const description of ['Sharper tension', '']) {
+        const change = { ...update, directive: { ...f.settings.directives[0], description } };
+        const parsed = f.editor.parse(response(change), request);
+        assert.equal(parsed.length, 1);
+        assert.equal(parsed[0].after.description, description);
+    }
+    for (const description of [null, 42, 'x'.repeat(1001)]) {
+        assert.throws(() => f.editor.parse(response({ ...update, directive: { ...update.directive, description } }), request));
+    }
+    f.settings.directives[0].description = 'Manual edit while waiting';
+    assert.equal(await f.editor.review(f.editor.parse(response(update), request), request, f.signal), 'stale');
+});
+
 test('context keeps recent group speakers in order, excludes system messages and obeys count/text bounds', () => {
     const chat = Array.from({ length: 25 }, (_, i) => ({ name: `Speaker ${i % 3}`, mes: `Message ${i}` }));
     chat.push({ is_system: true, mes: 'Hidden instruction' });
@@ -132,11 +151,12 @@ test('preview renders model text as text and returns checked changes only', asyn
     globalThis.document = { createElement: (tag) => ({ tag, children: [], append(...children) { this.children.push(...children); } }) };
     try {
         const f = setup();
-        const changes = f.editor.parse(response(update, { ...add, directive: { ...add.directive, name: '<img src=x onerror=alert(1)>' } }), f.editor.prepare('Edit', 10));
+        const changes = f.editor.parse(response(update, { ...add, directive: { ...add.directive, name: '<img src=x onerror=alert(1)>', description: '<script>description</script>' } }), f.editor.prepare('Edit', 10));
         const context = { POPUP_TYPE: { CONFIRM: 1 }, POPUP_RESULT: { AFFIRMATIVE: 1 },
             callGenericPopup: async (root) => {
                 root.children[2].children[0].checked = false;
                 assert.match(root.children[3].children[1].children[2].textContent, /<img/);
+                assert.match(root.children[3].children[1].children[2].textContent, /<script>description<\/script>/);
                 assert.equal(root.children[3].children[1].children[2].innerHTML, undefined);
                 return 1;
             } };

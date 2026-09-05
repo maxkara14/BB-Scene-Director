@@ -74,6 +74,24 @@ test('current settings preserve inactive directives, prompt values, macro pause,
     assert.equal(settings.masterPreset.allowMainFallback, true);
 });
 
+test('descriptions reach the prompt only for active directives and empty descriptions add nothing', async () => {
+    const f = await start({ schemaVersion: 8, presets: [], directives: [
+        { name: 'Mood', description: 'Quiet pauses\n build tension', active: true, value: 70 },
+        { name: 'Hidden', description: 'Secret description', active: false, value: 70 },
+        { name: 'Legacy', active: true, value: 30 },
+    ] });
+    const prompt = f.window.bbGetSceneDirectorPrompt();
+    assert.match(prompt, /Mood: 70%[^\n]*\n  Description: Quiet pauses build tension/);
+    assert.doesNotMatch(prompt, /Secret description|Hidden/);
+    assert.equal((prompt.match(/Description:/g) || []).length, 1);
+    assert.ok(prompt.endsWith('[END SCENE DIRECTOR]'));
+    assert.equal(f.prompts.at(-1)[1], prompt);
+    f.settings.categories[0].hint = 'Panel-only help must stay out of directing prompt';
+    assert.equal(f.window.bbGetSceneDirectorPrompt(), prompt);
+    f.settings.paused = true;
+    assert.equal(f.window.bbGetSceneDirectorPrompt(), '');
+});
+
 test('new and upgraded settings disable fallback by default', async () => {
     assert.equal((await start()).settings.masterPreset.allowMainFallback, false);
     assert.equal((await start({ schemaVersion: 8 })).settings.masterPreset.allowMainFallback, false);
