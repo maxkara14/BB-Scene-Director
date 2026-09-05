@@ -99,6 +99,7 @@
 }
 
 #bb-director-toggle {
+    font: inherit;
     position: fixed;
     left: 0;
     top: calc(var(--bb-dir-offset-top, 0px) + 160px);
@@ -553,9 +554,9 @@
 
 .bb-dir-section-topline {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    gap: 10px;
+    gap: 4px;
 }
 
 .bb-dir-section-meta {
@@ -576,15 +577,16 @@
     color: var(--bb-dir-text-soft);
     font-size: 11px;
     line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .bb-dir-section-count {
     color: var(--bb-dir-text-muted);
     font-size: 11px;
     line-height: 1.2;
-    justify-self: end;
-    text-align: right;
-    white-space: nowrap;
+    justify-self: start;
+    text-align: left;
+    overflow-wrap: anywhere;
 }
 
 .bb-dir-section-arrow {
@@ -905,6 +907,16 @@
 #bb-dir-stealth-btn.is-active {
     border-color: var(--bb-dir-border-strong);
     background: linear-gradient(180deg, rgba(39, 52, 76, 0.98), rgba(20, 28, 42, 0.98));
+}
+
+.bb-dir-card + .bb-dir-card {
+    margin-top: 8px;
+}
+
+#bb-director-toggle:focus-visible,
+#bb-director-hud :is(button, input, select, textarea):focus-visible {
+    outline: 2px solid var(--bb-dir-accent);
+    outline-offset: -2px;
 }
 
 #bb-dir-pause-btn.is-active {

@@ -26,7 +26,8 @@ async function setupUi() {
             val(value) { if (value === undefined) return this.value; this.value = value; return this; },
             attr(name, value) { this.attributes[name] = value; return this; },
             prop(name, value) { this.properties[name] = value; return this; },
-            toggleClass(name, on) { if (on) this.classes.add(name); else this.classes.delete(name); return this; },
+            toggleClass(name, on = !this.classes.has(name)) { if (on) this.classes.add(name); else this.classes.delete(name); return this; },
+            hasClass(name) { return this.classes.has(name); },
             addClass() { return this; }, removeClass() { return this; }, toggle() { return this; },
             is() { return Boolean(this.checked); },
             find(child) { return $(`${selector} ${child}`); },
@@ -101,4 +102,37 @@ test('preset names remain text in the new status and escaped markup in the dropd
     assert.equal(f.$('#bb-dir-draft-status').content, '<img src=x onerror=alert(1)> — без изменений');
     assert.doesNotMatch(f.$('#bb-dir-preset-select').content, /<img/);
     assert.match(f.$('#bb-dir-preset-select').content, /&lt;img/);
+});
+
+test('opening and closing the HUD keeps keyboard access and expanded state in sync', async () => {
+    const f = await setupUi();
+    const toggle = f.$('#bb-director-toggle');
+    const hud = f.$('#bb-director-hud');
+    f.handlers.get('#bb-director-toggle:click:')();
+    assert.equal(hud.properties.inert, false);
+    assert.equal(toggle.attributes['aria-expanded'], 'true');
+    f.handlers.get('#bb-director-toggle:click:')();
+    assert.equal(hud.properties.inert, true);
+    assert.equal(toggle.attributes['aria-expanded'], 'false');
+});
+
+test('collapsed toolbar and footer exclude hidden controls until reopened', async () => {
+    const f = await setupUi();
+    for (const name of ['toolbar', 'footer']) {
+        f.handlers.get(`#bb-dir-${name}-toggle:click:`)();
+        assert.equal(f.$(`#bb-dir-${name}-body`).properties.inert, true);
+        f.handlers.get(`#bb-dir-${name}-toggle:click:`)();
+        assert.equal(f.$(`#bb-dir-${name}-body`).properties.inert, false);
+    }
+});
+
+test('directive tooltip preserves full names without introducing HTML attributes', async () => {
+    const f = await setupUi();
+    f.settings.directives[0].name = 'Long title " onfocus="alert(1)';
+    f.ui.renderDirectorHud();
+    const markup = f.$('#bb-dir-list').content;
+    assert.match(markup, /title="Long title &quot; onfocus=&quot;alert\(1\)"/);
+    assert.doesNotMatch(markup, /" onfocus="/);
+    assert.match(markup, /aria-label="Название директивы"/);
+    assert.match(markup, /aria-label="Интенсивность директивы"/);
 });

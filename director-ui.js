@@ -115,6 +115,7 @@ export function createSceneDirectorUiController({
         block.toggleClass('is-collapsed', isCollapsed);
         toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
         body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
+        body.prop('inert', isCollapsed);
     }
 
     function renderFooterCollapsedState() {
@@ -127,6 +128,7 @@ export function createSceneDirectorUiController({
         footer.toggleClass('is-collapsed', isCollapsed);
         toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
         body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
+        body.prop('inert', isCollapsed);
     }
 
     function renderPreviewToggleState() {
@@ -179,7 +181,7 @@ export function createSceneDirectorUiController({
             `<article class="bb-dir-card ${inactiveClass}" data-id="${escapeHtml(directive.id)}">`,
             '<div class="bb-dir-card-head">',
             '<div class="bb-dir-card-main">',
-            `<input type="text" class="bb-dir-name bb-dir-input" value="${escapeHtml(directive.name)}" placeholder="Название директивы">`,
+            `<input type="text" class="bb-dir-name bb-dir-input" value="${escapeHtml(directive.name)}" title="${escapeHtml(directive.name)}" aria-label="Название директивы" placeholder="Название директивы">`,
             '</div>',
             '<div class="bb-dir-card-actions">',
             `<button class="bb-dir-btn interactable bb-dir-toggle" title="${directive.active ? 'Выключить' : 'Включить'}"><i class="fa-solid ${toggleIcon}"></i></button>`,
@@ -188,7 +190,7 @@ export function createSceneDirectorUiController({
             '</div>',
             '<div class="bb-dir-slider-row">',
             '<span class="bb-dir-slider-min">0%</span>',
-            `<input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${directive.value}">`,
+            `<input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${directive.value}" aria-label="Интенсивность директивы">`,
             `<span class="bb-dir-slider-value">${directive.value}%</span>`,
             '</div>',
             '<div class="bb-dir-card-foot">',
@@ -253,7 +255,7 @@ export function createSceneDirectorUiController({
             `<button class="bb-dir-btn interactable bb-dir-section-delete${canDeleteCategory ? '' : ' is-disabled'}" data-category-id="${escapeHtml(category.id)}" title="Удалить категорию"${canDeleteCategory ? '' : ' disabled'}><i class="fa-solid fa-trash"></i></button>`,
             '</div>',
             '</div>',
-            `<div class="bb-dir-section-list ${isExpanded ? 'is-open' : 'is-closed'}" data-category-id="${escapeHtml(category.id)}" aria-hidden="${isExpanded ? 'false' : 'true'}">`,
+            `<div class="bb-dir-section-list ${isExpanded ? 'is-open' : 'is-closed'}" data-category-id="${escapeHtml(category.id)}" aria-hidden="${isExpanded ? 'false' : 'true'}"${isExpanded ? '' : ' inert'}>`,
             '<div class="bb-dir-section-list-inner">',
             cards,
             emptyState,
@@ -568,11 +570,11 @@ export function createSceneDirectorUiController({
         }
 
         const hudHtml = `
-            <div id="bb-director-toggle" title="Scene Director">
+            <button type="button" id="bb-director-toggle" title="Scene Director" aria-label="Открыть Scene Director" aria-controls="bb-director-hud" aria-expanded="false">
                 <i class="fa-solid fa-clapperboard"></i>
                 <i class="fa-solid fa-chevron-right" id="bb-dir-arrow"></i>
-            </div>
-            <aside id="bb-director-hud">
+            </button>
+            <aside id="bb-director-hud" aria-label="Scene Director" inert>
                 <div class="bb-dir-head">
                     <div class="bb-dir-kicker">Scene Director</div>
                     <div class="bb-dir-title">SD</div>
@@ -661,7 +663,11 @@ export function createSceneDirectorUiController({
             const toggle = $('#bb-director-toggle');
 
             hud.toggleClass('open');
-            toggle.toggleClass('is-open', hud.hasClass('open'));
+            const isOpen = hud.hasClass('open');
+            hud.prop('inert', !isOpen);
+            toggle.toggleClass('is-open', isOpen);
+            toggle.attr('aria-expanded', String(isOpen));
+            toggle.attr('aria-label', isOpen ? 'Закрыть Scene Director' : 'Открыть Scene Director');
 
             if (hud.hasClass('open')) {
                 $('#bb-dir-arrow').removeClass('fa-chevron-right').addClass('fa-chevron-left');
@@ -686,6 +692,7 @@ export function createSceneDirectorUiController({
                 sectionList.toggleClass('is-open', nextExpanded);
                 sectionList.toggleClass('is-closed', !nextExpanded);
                 sectionList.attr('aria-hidden', nextExpanded ? 'false' : 'true');
+                sectionList.prop('inert', !nextExpanded);
             })
             .on('input', '.bb-dir-slider', function onSliderInput() {
                 const directive = findDirectiveByCard(this);
@@ -741,6 +748,7 @@ export function createSceneDirectorUiController({
 
                 draftState.checkpoint();
                 directive.name = String($(this).val() || '').trim() || 'Новая директива';
+                $(this).attr('title', directive.name);
                 saveSettingsDebounced();
                 updateDirectorPrompt();
             })
@@ -931,7 +939,10 @@ export function createSceneDirectorUiController({
         toggleButton.hide();
         if (hud.hasClass('open')) {
             hud.removeClass('open');
+            hud.prop('inert', true);
             toggleButton.removeClass('is-open');
+            toggleButton.attr('aria-expanded', 'false');
+            toggleButton.attr('aria-label', 'Открыть Scene Director');
             $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
         }
     }
