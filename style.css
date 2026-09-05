@@ -371,6 +371,11 @@
 .bb-dir-preset-io {
     margin-top: 8px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+}
+
+.bb-dir-preset-io #bb-dir-export-saved-json {
+    grid-column: 1 / -1;
 }
 
 .bb-dir-footer-actions {
