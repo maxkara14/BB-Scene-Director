@@ -33,6 +33,9 @@ function setup() {
     const input = add(master, '#bb-dir-master-request', 'textarea'); input.value = 'Unsaved request';
     add(toolbar, '.bb-dir-master-actions');
     const temporary = add(root, '.bb-dir-temporary');
+    const temporaryButton = add(temporary, '#bb-dir-temporary-toggle', 'button');
+    const temporaryBody = add(temporary, '#bb-dir-temporary-body'); temporaryBody.inert = true;
+    const temporaryInput = add(temporaryBody, '#bb-dir-temporary-text', 'textarea'); temporaryInput.value = 'Draft instruction';
     const list = add(root, '#bb-dir-list'); list.scrollTop = 145;
     const footer = add(root, '.bb-dir-footer'); footer.inert = true;
     const wrap = add(footer, '#bb-dir-preview-wrap'); const prompt = add(wrap, '#bb-dir-preview-text');
@@ -40,7 +43,7 @@ function setup() {
     const document = { getElementById: () => root, createElement: tag => new Node(tag) };
     const screens = createPanelScreens({ getScope: () => scope, getDocument: () => document });
     screens.mount();
-    return { root, screens, select, load, input, prompt, list, footer, temporary, loaded: () => loaded, focused: () => focused, switchChat: () => { scope = 'B'; } };
+    return { root, screens, select, load, input, prompt, list, footer, temporary, temporaryInput, temporaryButton, loaded: () => loaded, focused: () => focused, switchChat: () => { scope = 'B'; } };
 }
 
 test('screen mounting moves controls with their values and handlers, without duplicates', () => {
@@ -74,4 +77,19 @@ test('a chat switch returns to scene without restoring old focus; same-chat rend
     assert.equal(f.root.querySelector('#bb-dir-screen-master').hidden, true);
     assert.equal(f.list.inert, false);
     assert.equal(f.focused(), focus);
+});
+
+test('temporary summary opens its persistent editor without adding a fourth navigation button', () => {
+    const f = setup();
+    assert.equal(f.root.querySelector('.bb-dir-screen-nav').children.length, 3);
+    f.temporaryButton.events.click();
+    const screen = f.root.querySelector('#bb-dir-screen-temporary');
+    assert.equal(screen.hidden, false);
+    assert.equal(screen.querySelector('#bb-dir-temporary-body').inert, false);
+    assert.equal(f.temporaryButton.attrs['aria-controls'], screen.id);
+    f.temporaryInput.value = 'Not yet applied';
+    f.screens.close();
+    assert.equal(f.focused(), f.temporaryButton);
+    f.temporaryButton.events.click();
+    assert.equal(f.temporaryInput.value, 'Not yet applied');
 });

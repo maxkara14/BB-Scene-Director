@@ -45,6 +45,7 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
             ['presets', 'Пресеты', ['#bb-dir-preset-select', '.bb-dir-preset-actions', '.bb-dir-preset-io']],
             ['master', 'Мастер', ['.bb-dir-master-request-wrap', '.bb-dir-master-actions']],
             ['prompt', 'Промпт', ['#bb-dir-preview-text']],
+            ['temporary', 'Временное указание', ['#bb-dir-temporary-body']],
         ];
         for (const [name, title, selectors] of definitions) {
             const screen = document.createElement('section');
@@ -63,12 +64,20 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
             const body = document.createElement('div'); body.className = 'bb-dir-screen-body';
             for (const selector of selectors) { const node = hud.querySelector(selector); if (node) body.append(node); }
             screen.append(head, body);
-            const button = document.createElement('button');
-            button.type = 'button'; button.className = 'bb-dir-btn'; button.textContent = title;
-            button.id = `bb-dir-open-${name}`;
+            const button = name === 'temporary' ? hud.querySelector('#bb-dir-temporary-toggle') : document.createElement('button');
+            if (!button) continue;
+            if (name !== 'temporary') {
+                button.type = 'button'; button.className = 'bb-dir-btn'; button.textContent = title;
+                button.id = `bb-dir-open-${name}`;
+                nav.append(button);
+            }
             button.setAttribute('aria-controls', screen.id); button.setAttribute('aria-expanded', 'false');
             button.addEventListener('click', () => open(name));
-            nav.append(button); hud.append(screen); screens.set(name, { button, screen });
+            hud.append(screen); screens.set(name, { button, screen });
+            if (name === 'temporary') {
+                const formBody = screen.querySelector('#bb-dir-temporary-body');
+                if (formBody) { formBody.inert = false; formBody.setAttribute('aria-hidden', 'false'); }
+            }
             screen.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } });
         }
         hud.querySelector('.bb-dir-toolbar')?.remove();

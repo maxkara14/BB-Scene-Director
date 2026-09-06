@@ -55,6 +55,7 @@ export function createSceneDirectorUiController({
             : note.remaining === 0 ? 'завершено'
                 : note.remaining === null ? 'до отключения' : `осталось ходов: ${note.remaining}`;
         $('#bb-dir-temporary-status').text(`${getSettings().paused && active ? 'на паузе · ' : ''}${status}`);
+        $('#bb-dir-temporary-summary').text(active ? note.text : '').prop('hidden', !active);
         $('#bb-dir-temporary-stop').prop('disabled', !note?.enabled);
     }
 
@@ -572,8 +573,7 @@ export function createSceneDirectorUiController({
             <aside id="bb-director-hud" aria-label="Scene Director" inert>
                 <div class="bb-dir-head">
                     <div class="bb-dir-kicker">Scene Director</div>
-                    <div class="bb-dir-title">SD</div>
-                    <div class="bb-dir-subtitle">Сцена текущего чата</div>
+                    <button id="bb-dir-pause-btn" class="bb-dir-btn interactable bb-dir-with-icon" type="button" aria-pressed="false"><i class="fa-solid fa-circle-pause"></i><span>Активен</span></button>
                 </div>
 
                 <div class="bb-dir-toolbar">
@@ -632,14 +632,14 @@ export function createSceneDirectorUiController({
                 <div class="bb-dir-draft-bar">
                     <div id="bb-dir-draft-status" role="status"></div>
                     <div class="bb-dir-draft-actions">
-                        <button id="bb-dir-undo" type="button" class="bb-dir-btn interactable" disabled title="Отменить изменение сцены (история до перезагрузки страницы)">Отменить</button>
-                        <button id="bb-dir-redo" type="button" class="bb-dir-btn interactable" disabled title="Повторить изменение сцены">Повторить</button>
+                        <button id="bb-dir-undo" type="button" class="bb-dir-btn interactable" disabled aria-label="Отменить изменение сцены" title="Отменить изменение сцены (история до перезагрузки страницы)"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
+                        <button id="bb-dir-redo" type="button" class="bb-dir-btn interactable" disabled aria-label="Повторить изменение сцены" title="Повторить изменение сцены"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
                     </div>
                 </div>
                 <div class="bb-dir-temporary is-collapsed">
                     <button type="button" id="bb-dir-temporary-toggle" class="bb-dir-temporary-toggle" aria-expanded="false" aria-controls="bb-dir-temporary-body">
-                        <span>Временное указание <span id="bb-dir-temporary-status" role="status"></span></span>
-                        <i class="fa-solid fa-chevron-down bb-dir-temporary-arrow" aria-hidden="true"></i>
+                        <span>Временное указание <span id="bb-dir-temporary-status" role="status"></span><span id="bb-dir-temporary-summary" hidden></span></span>
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
                     </button>
                     <div id="bb-dir-temporary-body" class="bb-dir-temporary-body" aria-hidden="true" inert>
                     <div class="bb-dir-temporary-inner">
@@ -670,7 +670,6 @@ export function createSceneDirectorUiController({
                         <div class="bb-dir-footer-body-inner">
                             <div class="bb-dir-footer-actions">
                                 <button id="bb-dir-add-btn" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-folder-plus"></i><span>Добавить категорию</span></button>
-                                <button id="bb-dir-pause-btn" class="bb-dir-btn interactable bb-dir-with-icon" type="button" aria-pressed="false"><i class="fa-solid fa-circle-pause"></i><span>Активен</span></button>
                                 <button id="bb-dir-stealth-btn" class="bb-dir-btn interactable bb-dir-with-icon" title="Скрывать неактивные"><i class="fa-solid fa-eye-slash"></i><span>Скрыть неактивные</span></button>
                                 <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать промпт</span></button>
                             </div>
@@ -884,6 +883,7 @@ export function createSceneDirectorUiController({
             saveSettingsDebounced();
             updateDirectorPrompt();
             updatePauseButtonState();
+            renderTemporaryDirection();
         });
 
         $('#bb-dir-footer-toggle').on('click', function onFooterToggleClick() {
@@ -904,15 +904,13 @@ export function createSceneDirectorUiController({
             const duration = Number($('#bb-dir-temporary-duration').val());
             if (!temporaryDirection.arm(String($('#bb-dir-temporary-text').val() || ''), duration || null)) {
                 notify('warning', 'Введи временное указание в открытом чате.');
+                return;
             }
+            panelScreens.close();
         });
-        $('#bb-dir-temporary-stop').on('click', () => temporaryDirection.stop());
-        $('#bb-dir-temporary-toggle').on('click', () => {
-            const block = $('.bb-dir-temporary');
-            const expanded = block.hasClass('is-collapsed');
-            block.toggleClass('is-collapsed', !expanded);
-            $('#bb-dir-temporary-toggle').attr('aria-expanded', String(expanded));
-            $('#bb-dir-temporary-body').attr('aria-hidden', String(!expanded)).prop('inert', !expanded);
+        $('#bb-dir-temporary-stop').on('click', () => {
+            temporaryDirection.stop();
+            panelScreens.close();
         });
 
         renderPresetsDropdown();

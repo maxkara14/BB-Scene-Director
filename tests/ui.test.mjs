@@ -112,19 +112,24 @@ test('temporary form arms the chosen duration, preserves unsubmitted text on rer
     assert.equal(f.settings.temporaryDirection.enabled, false);
 });
 
-test('temporary section toggles keyboard access and expanded state without losing input', async () => {
+test('temporary summary uses saved text and follows pause, expiry and disable state', async () => {
     const f = await setupUi();
-    const block = f.$('.bb-dir-temporary');
-    block.classes.add('is-collapsed');
-    f.$('#bb-dir-temporary-text').val('Pending text');
-    const toggle = f.handlers.get('#bb-dir-temporary-toggle:click:');
-    toggle();
-    assert.equal(f.$('#bb-dir-temporary-toggle').attributes['aria-expanded'], 'true');
-    assert.equal(f.$('#bb-dir-temporary-body').properties.inert, false);
-    toggle();
-    assert.equal(f.$('#bb-dir-temporary-toggle').attributes['aria-expanded'], 'false');
-    assert.equal(f.$('#bb-dir-temporary-body').properties.inert, true);
-    assert.equal(f.$('#bb-dir-temporary-text').val(), 'Pending text');
+    f.$('#bb-dir-temporary-text').val('<b>Knock</b>');
+    f.$('#bb-dir-temporary-duration').val('1');
+    f.handlers.get('#bb-dir-temporary-arm:click:')();
+    assert.equal(f.$('#bb-dir-temporary-summary').content, '<b>Knock</b>');
+    assert.equal(f.$('#bb-dir-temporary-summary').properties.hidden, false);
+    f.$('#bb-dir-temporary-text').val('Unapplied edit');
+    f.handlers.get('#bb-dir-pause-btn:click:')();
+    assert.match(f.$('#bb-dir-temporary-status').content, /на паузе/);
+    assert.equal(f.settings.temporaryDirection.remaining, 1);
+    assert.equal(f.$('#bb-dir-temporary-text').val(), 'Unapplied edit');
+    f.handlers.get('#bb-dir-pause-btn:click:')();
+    assert.doesNotMatch(f.$('#bb-dir-temporary-status').content, /на паузе/);
+    f.settings.temporaryDirection.remaining = 0;
+    f.ui.renderTemporaryDirection();
+    assert.equal(f.$('#bb-dir-temporary-summary').properties.hidden, true);
+    assert.equal(f.$('#bb-dir-temporary-status').content, 'завершено');
 });
 
 test('slider handler, undo, and redo update scene values, dirty status, and prompt', async () => {
