@@ -1,4 +1,4 @@
-import { normalizeDirectiveDescription } from './preset-model.js';
+import { createPanelEditor } from './panel-editor.js';
 
 export function createSceneDirectorUiController({
     createCategoryRecord,
@@ -9,7 +9,6 @@ export function createSceneDirectorUiController({
     escapeHtml,
     getCategories,
     getContext,
-    getIntensityLabel,
     getSettings,
     groupDirectivesByCategory,
     masterWorkflow,
@@ -29,6 +28,12 @@ export function createSceneDirectorUiController({
 }) {
     let temporaryScope = null;
     let temporaryId = null;
+    const panelEditor = createPanelEditor({
+        getSettings, draftState, escapeHtml, notify,
+        getScope: () => { const context = getContext(); return JSON.stringify([context.chatId, context.characterId, context.groupId]); },
+        changed: () => { saveSettingsDebounced(); renderDirectorHud(); updateDirectorPrompt(); },
+        deleteCategory: id => presetManager.handleDeleteCategory(id),
+    });
 
     function renderTemporaryDirection() {
         const context = getContext();
@@ -205,11 +210,10 @@ export function createSceneDirectorUiController({
             `<article class="bb-dir-card ${inactiveClass}" data-id="${escapeHtml(directive.id)}">`,
             '<div class="bb-dir-card-head">',
             '<div class="bb-dir-card-main">',
-            `<input type="text" class="bb-dir-name bb-dir-input" value="${escapeHtml(directive.name)}" title="${escapeHtml(directive.name)}" aria-label="Название директивы" placeholder="Название директивы">`,
+            `<button type="button" class="bb-dir-open-editor" title="Редактировать: ${escapeHtml(directive.name)}">${escapeHtml(directive.name)}${directive.locked ? '<small>Закреплена</small>' : ''}</button>`,
             '</div>',
             '<div class="bb-dir-card-actions">',
-            `<button class="bb-dir-btn interactable bb-dir-toggle" title="${directive.active ? 'Выключить' : 'Включить'}"><i class="fa-solid ${toggleIcon}"></i></button>`,
-            '<button class="bb-dir-btn interactable bb-dir-delete" title="Удалить"><i class="fa-solid fa-trash"></i></button>',
+            `<button class="bb-dir-btn interactable bb-dir-toggle" aria-pressed="${directive.active}" aria-label="${directive.active ? 'Выключить' : 'Включить'} директиву" title="${directive.active ? 'Выключить' : 'Включить'}"><i class="fa-solid ${toggleIcon}"></i></button>`,
             '</div>',
             '</div>',
             '<div class="bb-dir-slider-row">',
@@ -217,30 +221,12 @@ export function createSceneDirectorUiController({
             `<input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${directive.value}" aria-label="Интенсивность директивы">`,
             `<span class="bb-dir-slider-value">${directive.value}%</span>`,
             '</div>',
-            '<div class="bb-dir-card-foot">',
-            '<div class="bb-dir-level-controls">',
-            `<span class="bb-dir-level-pill">${escapeHtml(getIntensityLabel(directive.value))}</span>`,
-            `<button class="bb-dir-btn interactable bb-dir-lock" aria-pressed="${directive.locked === true}" title="${directive.locked ? 'Разрешить мастеру менять директиву' : 'Защитить директиву от изменений мастером'}"><i class="fa-solid ${directive.locked ? 'fa-lock' : 'fa-lock-open'}"></i></button>`,
-            '</div>',
-            `<select class="bb-dir-category-select bb-dir-input" title="Категория">${renderCategoryOptions(directive.category)}</select>`,
-            '</div>',
-            '<details class="bb-dir-description-editor">',
-            `<summary>${directive.description ? 'Описание' : 'Добавить описание'}</summary>`,
-            `<textarea class="bb-dir-description bb-dir-input" rows="3" maxlength="1000" aria-label="Описание директивы" placeholder="Как эта директива должна влиять на сцену? Необязательно, до 1000 символов.">${escapeHtml(directive.description || '')}</textarea>`,
-            '</details>',
             '</article>',
         ].join('');
     }
 
-    function renderCategoryOptions(selectedCategory) {
-        const categories = getCategories();
-        return categories.map((category) => {
-            const selected = category.id === normalizeCategoryId(selectedCategory, categories) ? ' selected' : '';
-            return `<option value="${escapeHtml(category.id)}"${selected}>${escapeHtml(category.label)}</option>`;
-        }).join('');
-    }
-
     function renderDirectorHud() {
+        panelEditor.sync();
         const root = $('#bb-dir-list');
         if (!root.length) {
             return;
@@ -256,7 +242,6 @@ export function createSceneDirectorUiController({
             const directives = allDirectives.filter((directive) => !shouldHideInactive || directive.active);
             const activeCount = allDirectives.filter((directive) => directive.active).length;
             const isExpanded = Boolean(expandedCategories[category.id]);
-            const canDeleteCategory = categories.length > 1;
             const countText = allDirectives.length
                 ? `${activeCount} активных / ${allDirectives.length}`
                 : 'Пусто';
@@ -282,15 +267,14 @@ export function createSceneDirectorUiController({
             '<span class="bb-dir-section-arrow"><i class="fa-solid fa-chevron-down"></i></span>',
                 '</button>',
                 '<div class="bb-dir-section-actions">',
-                `<button class="bb-dir-btn interactable bb-dir-section-add" data-category-id="${escapeHtml(category.id)}" title="Добавить в секцию"><i class="fa-solid fa-plus"></i></button>`,
-                `<button type="button" class="bb-dir-btn interactable bb-dir-section-edit-hint" data-category-id="${escapeHtml(category.id)}" title="Изменить описание группы" aria-label="Изменить описание группы"><i class="fa-solid fa-pen"></i></button>`,
-            `<button class="bb-dir-btn interactable bb-dir-section-delete${canDeleteCategory ? '' : ' is-disabled'}" data-category-id="${escapeHtml(category.id)}" title="Удалить категорию"${canDeleteCategory ? '' : ' disabled'}><i class="fa-solid fa-trash"></i></button>`,
+                `<button type="button" class="bb-dir-btn interactable bb-dir-section-editor" data-category-id="${escapeHtml(category.id)}" title="Редактировать группу" aria-label="Редактировать группу"><i class="fa-solid fa-ellipsis"></i></button>`,
             '</div>',
             '</div>',
             `<div class="bb-dir-section-list ${isExpanded ? 'is-open' : 'is-closed'}" data-category-id="${escapeHtml(category.id)}" aria-hidden="${isExpanded ? 'false' : 'true'}"${isExpanded ? '' : ' inert'}>`,
             '<div class="bb-dir-section-list-inner">',
             cards,
             emptyState,
+            `<button type="button" class="bb-dir-btn bb-dir-section-add" data-category-id="${escapeHtml(category.id)}">+ Директива</button>`,
             '</div>',
             '</div>',
             '</section>',
@@ -751,6 +735,13 @@ export function createSceneDirectorUiController({
         });
 
         $('#bb-dir-list')
+            .on('click', '.bb-dir-open-editor', function onOpenDirectiveEditor() {
+                const directive = findDirectiveByCard(this);
+                if (directive) panelEditor.open('directive', directive.id);
+            })
+            .on('click', '.bb-dir-section-editor', function onOpenGroupEditor() {
+                panelEditor.open('group', String($(this).data('categoryId') || ''));
+            })
             .on('click', '.bb-dir-section-toggle', function onSectionToggle() {
                 const categoryId = normalizeCategoryId(String($(this).data('categoryId') || ''), getSettings().categories);
                 const currentState = normalizeExpandedCategories(getSettings().expandedCategories, getSettings().categories);
@@ -768,14 +759,6 @@ export function createSceneDirectorUiController({
                 sectionList.attr('aria-hidden', nextExpanded ? 'false' : 'true');
                 sectionList.prop('inert', !nextExpanded);
             })
-            .on('click', '.bb-dir-lock', function onLockDirective() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) return;
-                draftState.checkpoint();
-                directive.locked = !directive.locked;
-                saveSettingsDebounced();
-                renderDirectorHud();
-            })
             .on('input', '.bb-dir-slider', function onSliderInput() {
                 const directive = findDirectiveByCard(this);
                 if (!directive) {
@@ -790,7 +773,6 @@ export function createSceneDirectorUiController({
                 directive.value = nextValue;
                 const card = $(this).closest('.bb-dir-card');
                 card.find('.bb-dir-slider-value').text(`${directive.value}%`);
-                card.find('.bb-dir-level-pill').text(getIntensityLabel(directive.value));
                 saveSettingsDebounced({ deferMetadata: true });
                 schedulePromptUpdate();
             })
@@ -806,56 +788,6 @@ export function createSceneDirectorUiController({
 
                 draftState.checkpoint();
                 directive.active = !directive.active;
-                saveSettingsDebounced();
-                renderDirectorHud();
-                updateDirectorPrompt();
-            })
-            .on('click', '.bb-dir-delete', function onDeleteDirective() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) {
-                    return;
-                }
-
-                draftState.checkpoint();
-                getSettings().directives = getSettings().directives.filter((item) => item.id !== directive.id);
-                saveSettingsDebounced();
-                renderDirectorHud();
-                updateDirectorPrompt();
-            })
-            .on('change', '.bb-dir-name', function onDirectiveRename() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) {
-                    return;
-                }
-
-                draftState.checkpoint();
-                directive.name = String($(this).val() || '').trim() || 'Новая директива';
-                $(this).attr('title', directive.name);
-                saveSettingsDebounced();
-                updateDirectorPrompt();
-            })
-            .on('change', '.bb-dir-description', function onDescriptionChange() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) return;
-                const description = normalizeDirectiveDescription($(this).val());
-                $(this).val(description);
-                if (description === (directive.description || '')) return;
-                draftState.checkpoint();
-                directive.description = description;
-                $(this).closest('.bb-dir-description-editor').find('summary').text(description ? 'Описание' : 'Добавить описание');
-                saveSettingsDebounced();
-                updateDirectorPrompt();
-            })
-            .on('change', '.bb-dir-category-select', function onCategoryChange() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) {
-                    return;
-                }
-
-                draftState.checkpoint();
-                directive.category = normalizeCategoryId($(this).val(), getSettings().categories);
-                ensureCategoryExpansionState(directive.category, true);
-                state.revealDirectiveId = directive.id;
                 saveSettingsDebounced();
                 renderDirectorHud();
                 updateDirectorPrompt();
@@ -876,34 +808,6 @@ export function createSceneDirectorUiController({
                 saveSettingsDebounced();
                 renderDirectorHud();
                 updateDirectorPrompt();
-            })
-            .on('click', '.bb-dir-section-edit-hint', async function onEditCategoryHint() {
-                const id = String($(this).data('categoryId') || '');
-                const category = getCategories().find((item) => item.id === id);
-                if (!category) return;
-                const signature = draftState.getSignature();
-                const hint = await promptText('Описание группы — подсказка в панели, не добавляется в промпт:', category.hint, {
-                    rows: 4, okButton: 'Сохранить', cancelButton: 'Отмена',
-                });
-                if (hint === null) return;
-                if (draftState.getSignature() !== signature) {
-                    notify('warning', 'Чат или сцена изменились. Повтори редактирование описания в текущей сцене.');
-                    return;
-                }
-                const nextHint = String(hint).trim();
-                if (nextHint === category.hint) return;
-                draftState.checkpoint();
-                category.hint = nextHint;
-                saveSettingsDebounced();
-                renderDirectorHud();
-            })
-            .on('click', '.bb-dir-section-delete', function onSectionDelete() {
-                const categoryId = String($(this).data('categoryId') || '').trim();
-                if (!categoryId) {
-                    return;
-                }
-
-                void presetManager.handleDeleteCategory(categoryId);
             });
 
         $('#bb-dir-add-btn').on('click', async function onAddCategoryClick() {
