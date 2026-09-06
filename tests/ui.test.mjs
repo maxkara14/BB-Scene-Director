@@ -166,9 +166,9 @@ test('opening and closing the HUD keeps keyboard access and expanded state in sy
     assert.equal(toggle.attributes['aria-expanded'], 'false');
 });
 
-test('collapsed toolbar and footer exclude hidden controls until reopened', async () => {
+test('collapsed footer excludes hidden controls until reopened', async () => {
     const f = await setupUi();
-    for (const name of ['toolbar', 'footer']) {
+    for (const name of ['footer']) {
         f.handlers.get(`#bb-dir-${name}-toggle:click:`)();
         assert.equal(f.$(`#bb-dir-${name}-body`).properties.inert, true);
         f.handlers.get(`#bb-dir-${name}-toggle:click:`)();

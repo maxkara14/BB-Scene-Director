@@ -1,4 +1,5 @@
 import { createPanelEditor } from './panel-editor.js';
+import { createPanelScreens } from './panel-screens.js';
 
 export function createSceneDirectorUiController({
     createCategoryRecord,
@@ -28,6 +29,10 @@ export function createSceneDirectorUiController({
 }) {
     let temporaryScope = null;
     let temporaryId = null;
+    const panelScreens = createPanelScreens({
+        getDocument: () => document,
+        getScope: () => { const context = getContext(); return JSON.stringify([context.chatId, context.characterId, context.groupId]); },
+    });
     const panelEditor = createPanelEditor({
         getSettings, draftState, escapeHtml, notify,
         getScope: () => { const context = getContext(); return JSON.stringify([context.chatId, context.characterId, context.groupId]); },
@@ -134,19 +139,6 @@ export function createSceneDirectorUiController({
         button.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
     }
 
-    function renderToolbarCollapsedState() {
-        const settings = getSettings();
-        const block = $('#bb-director-hud').find('.bb-dir-toolbar .bb-dir-block');
-        const toggle = $('#bb-dir-toolbar-toggle');
-        const body = $('#bb-dir-toolbar-body');
-        const isCollapsed = Boolean(settings.toolbarCollapsed);
-
-        block.toggleClass('is-collapsed', isCollapsed);
-        toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
-        body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
-        body.prop('inert', isCollapsed);
-    }
-
     function renderFooterCollapsedState() {
         const settings = getSettings();
         const footer = $('#bb-dir-footer');
@@ -158,26 +150,6 @@ export function createSceneDirectorUiController({
         toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
         body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
         body.prop('inert', isCollapsed);
-    }
-
-    function renderPreviewToggleState() {
-        const settings = getSettings();
-        const toggleButton = $('#bb-dir-preview-toggle');
-        const previewWrap = $('#bb-dir-preview-wrap');
-        const isExpanded = Boolean(settings.previewExpanded);
-        const icon = isExpanded ? 'fa-eye-slash' : 'fa-eye';
-        const label = isExpanded ? 'Скрыть промпт' : 'Показать промпт';
-
-        if (toggleButton.length) {
-            toggleButton.toggleClass('is-active', isExpanded);
-            toggleButton.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
-        }
-
-        if (previewWrap.length) {
-            previewWrap.toggleClass('is-open', isExpanded);
-            previewWrap.toggleClass('is-closed', !isExpanded);
-            previewWrap.attr('aria-hidden', isExpanded ? 'false' : 'true');
-        }
     }
 
     function revealDirectiveCardIfNeeded() {
@@ -227,6 +199,7 @@ export function createSceneDirectorUiController({
 
     function renderDirectorHud() {
         panelEditor.sync();
+        panelScreens.sync();
         const root = $('#bb-dir-list');
         if (!root.length) {
             return;
@@ -285,7 +258,6 @@ export function createSceneDirectorUiController({
 
         updateStealthButtonState();
         updatePauseButtonState();
-        renderPreviewToggleState();
         renderDraftStatus();
         renderTemporaryDirection();
         requestAnimationFrame(revealDirectiveCardIfNeeded);
@@ -715,6 +687,7 @@ export function createSceneDirectorUiController({
         `;
 
         $('body').append(hudHtml);
+        panelScreens.mount();
 
         $('#bb-director-toggle').on('click', function onToggleClick() {
             const hud = $('#bb-director-hud');
@@ -913,18 +886,6 @@ export function createSceneDirectorUiController({
             updatePauseButtonState();
         });
 
-        $('#bb-dir-preview-toggle').on('click', function onPreviewToggle() {
-            getSettings().previewExpanded = !getSettings().previewExpanded;
-            saveSettingsDebounced();
-            renderPreviewToggleState();
-        });
-
-        $('#bb-dir-toolbar-toggle').on('click', function onToolbarToggleClick() {
-            getSettings().toolbarCollapsed = !getSettings().toolbarCollapsed;
-            saveSettingsDebounced();
-            renderToolbarCollapsedState();
-        });
-
         $('#bb-dir-footer-toggle').on('click', function onFooterToggleClick() {
             getSettings().footerCollapsed = !getSettings().footerCollapsed;
             saveSettingsDebounced();
@@ -957,7 +918,6 @@ export function createSceneDirectorUiController({
         renderPresetsDropdown();
         renderDirectorHud();
         renderMasterControls();
-        renderToolbarCollapsedState();
         renderFooterCollapsedState();
         updateDirectorPrompt();
     }
