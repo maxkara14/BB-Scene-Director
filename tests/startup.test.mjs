@@ -92,6 +92,31 @@ test('descriptions reach the prompt only for active directives and empty descrip
     assert.equal(f.window.bbGetSceneDirectorPrompt(), '');
 });
 
+test('intensity guidance appears once with unchanged level boundaries and respects pause', async () => {
+    // Stored intensities use steps of 5; cover both sides of each level boundary.
+    const levels = [[0, 'Off'], [5, 'Low'], [30, 'Low'], [35, 'Medium'], [65, 'Medium'], [70, 'High'], [85, 'High'], [90, 'Max'], [100, 'Max']];
+    const f = await start({ schemaVersion: 8, v2PercentageMigrated: true, presets: [], directives: levels.map(([value]) => ({ name: `Level ${value}`, value, active: true })) });
+    const prompt = f.window.bbGetSceneDirectorPrompt();
+    assert.equal(prompt.split('[Intensity scale:').length - 1, 1);
+    for (const [value, level] of levels) assert.ok(prompt.includes(`- Level ${value}: ${value}% (${level})`));
+    assert.ok(prompt.includes('not the probability of an event'));
+    assert.ok(prompt.endsWith('[END SCENE DIRECTOR]'));
+    assert.equal(f.prompts.at(-1)[1], prompt);
+    f.settings.paused = true;
+    assert.equal(f.window.bbGetSceneDirectorPrompt(), '');
+});
+
+test('empty and temporary-only scenes do not include intensity guidance', async () => {
+    const f = await start({ schemaVersion: 8, directives: [], presets: [] });
+    assert.equal(f.window.bbGetSceneDirectorPrompt(), '');
+    f.temporaryController.arm('Knock at the door', 1);
+    const prompt = f.window.bbGetSceneDirectorPrompt();
+    assert.match(prompt, /TEMPORARY SCENE DIRECTION/);
+    assert.match(prompt, /Knock at the door/);
+    assert.doesNotMatch(prompt, /Intensity scale:/);
+    assert.ok(prompt.endsWith('[END SCENE DIRECTOR]'));
+});
+
 test('new and upgraded settings disable fallback by default', async () => {
     assert.equal((await start()).settings.masterPreset.allowMainFallback, false);
     assert.equal((await start({ schemaVersion: 8 })).settings.masterPreset.allowMainFallback, false);

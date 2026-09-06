@@ -29,6 +29,19 @@ export function createSceneDirectorUiController({
 }) {
     let temporaryScope = null;
     let temporaryId = null;
+    let searchQuery = '';
+    let searchOpen = false;
+    let searchScope;
+
+    function setSearchOpen(open) {
+        searchOpen = open;
+        $('#bb-dir-search-wrap').prop('hidden', !open).prop('inert', !open);
+        $('#bb-dir-search-toggle').attr('aria-expanded', String(open));
+        if (!open) {
+            searchQuery = '';
+            $('#bb-dir-search-input').val('');
+        }
+    }
     const panelScreens = createPanelScreens({
         getDocument: () => document,
         getScope: () => { const context = getContext(); return JSON.stringify([context.chatId, context.characterId, context.groupId]); },
@@ -201,6 +214,12 @@ export function createSceneDirectorUiController({
     function renderDirectorHud() {
         panelEditor.sync();
         panelScreens.sync();
+        const context = getContext();
+        const scope = JSON.stringify([context.chatId, context.characterId, context.groupId]);
+        if (searchScope !== scope) {
+            searchScope = scope;
+            setSearchOpen(false);
+        }
         const root = $('#bb-dir-list');
         if (!root.length) {
             return;
@@ -210,12 +229,17 @@ export function createSceneDirectorUiController({
         const groups = groupDirectivesByCategory(getSettings().directives);
         const shouldHideInactive = getSettings().hideInactive;
         const expandedCategories = normalizeExpandedCategories(getSettings().expandedCategories, categories);
+        const query = searchQuery.trim().toLowerCase();
+        let matchedCount = 0;
 
         const sections = categories.map((category) => {
             const allDirectives = groups.get(category.id) || [];
-            const directives = allDirectives.filter((directive) => !shouldHideInactive || directive.active);
+            const directives = allDirectives.filter((directive) => (!shouldHideInactive || directive.active)
+                && (!query || [directive.name, directive.description, category.label].some(text => String(text || '').toLowerCase().includes(query))));
+            if (query && !directives.length) return '';
+            matchedCount += directives.length;
             const activeCount = allDirectives.filter((directive) => directive.active).length;
-            const isExpanded = Boolean(expandedCategories[category.id]);
+            const isExpanded = Boolean(query) || Boolean(expandedCategories[category.id]);
             const countText = allDirectives.length
                 ? `${activeCount} активных / ${allDirectives.length}`
                 : 'Пусто';
@@ -230,7 +254,7 @@ export function createSceneDirectorUiController({
         return [
             `<section class="bb-dir-section ${isExpanded ? 'is-expanded' : 'is-collapsed'}" data-category-id="${escapeHtml(category.id)}">`,
             '<div class="bb-dir-section-head">',
-            `<button type="button" class="bb-dir-section-toggle" data-category-id="${escapeHtml(category.id)}" aria-expanded="${isExpanded ? 'true' : 'false'}">`,
+            `<button type="button" class="bb-dir-section-toggle" data-category-id="${escapeHtml(category.id)}" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-disabled="${Boolean(query)}">`,
                 '<div class="bb-dir-section-meta">',
                 '<div class="bb-dir-section-topline">',
                 `<div class="bb-dir-section-title">${escapeHtml(category.label)}</div>`,
@@ -255,7 +279,8 @@ export function createSceneDirectorUiController({
         ].join('');
         }).join('');
 
-        root.html(sections);
+        root.html(sections || (query ? '<div class="bb-dir-empty">Ничего не найдено. Измени запрос или очисти поиск.</div>' : ''));
+        $('#bb-dir-search-status').text(query ? `Найдено: ${matchedCount}${shouldHideInactive ? ' · неактивные скрыты' : ''}` : 'Название, описание директивы или название группы');
 
         updateStealthButtonState();
         updatePauseButtonState();
@@ -632,6 +657,7 @@ export function createSceneDirectorUiController({
                 <div class="bb-dir-draft-bar">
                     <div id="bb-dir-draft-status" role="status"></div>
                     <div class="bb-dir-draft-actions">
+                        <button id="bb-dir-search-toggle" type="button" class="bb-dir-btn interactable" aria-label="Поиск по сцене" title="Поиск по сцене" aria-expanded="false" aria-controls="bb-dir-search-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
                         <button id="bb-dir-undo" type="button" class="bb-dir-btn interactable" disabled aria-label="Отменить изменение сцены" title="Отменить изменение сцены (история до перезагрузки страницы)"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
                         <button id="bb-dir-redo" type="button" class="bb-dir-btn interactable" disabled aria-label="Повторить изменение сцены" title="Повторить изменение сцены"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
                     </div>
@@ -657,6 +683,10 @@ export function createSceneDirectorUiController({
                         </div>
                     </div>
                     </div>
+                </div>
+                <div id="bb-dir-search-wrap" hidden inert>
+                    <div class="bb-dir-search-row"><input id="bb-dir-search-input" class="bb-dir-input" type="search" maxlength="200" aria-label="Поиск директив" aria-describedby="bb-dir-search-status" placeholder="Поиск по сцене"><button id="bb-dir-search-clear" type="button" class="bb-dir-btn" aria-label="Очистить поиск" title="Очистить поиск">×</button></div>
+                    <small id="bb-dir-search-status" role="status" aria-live="polite"></small>
                 </div>
                 <div id="bb-dir-list"></div>
 
@@ -688,6 +718,30 @@ export function createSceneDirectorUiController({
         $('body').append(hudHtml);
         panelScreens.mount();
 
+        $('#bb-dir-search-toggle').on('click', () => {
+            setSearchOpen(!searchOpen);
+            renderDirectorHud();
+            document.getElementById(searchOpen ? 'bb-dir-search-input' : 'bb-dir-search-toggle')?.focus();
+        });
+        $('#bb-dir-search-input').on('input', function () {
+            searchQuery = String($(this).val() || '');
+            renderDirectorHud();
+        });
+        $('#bb-dir-search-clear').on('click', () => {
+            searchQuery = '';
+            $('#bb-dir-search-input').val('');
+            renderDirectorHud();
+            document.getElementById('bb-dir-search-input')?.focus();
+        });
+        $('#bb-dir-search-wrap').on('keydown', event => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            setSearchOpen(false);
+            renderDirectorHud();
+            document.getElementById('bb-dir-search-toggle')?.focus();
+        });
+
         $('#bb-director-toggle').on('click', function onToggleClick() {
             const hud = $('#bb-director-hud');
             const toggle = $('#bb-director-toggle');
@@ -715,6 +769,7 @@ export function createSceneDirectorUiController({
                 panelEditor.open('group', String($(this).data('categoryId') || ''));
             })
             .on('click', '.bb-dir-section-toggle', function onSectionToggle() {
+                if (searchQuery.trim()) return;
                 const categoryId = normalizeCategoryId(String($(this).data('categoryId') || ''), getSettings().categories);
                 const currentState = normalizeExpandedCategories(getSettings().expandedCategories, getSettings().categories);
                 const nextExpanded = !currentState[categoryId];

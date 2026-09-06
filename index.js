@@ -593,6 +593,10 @@ function getDirectorPromptText() {
         '[Higher values must have noticeably stronger influence. 0% means ignore that directive. If directives conflict, stronger values take priority.]',
     ];
 
+    if (activeDirectives.length) {
+        lines.push('[Intensity scale: 0% (Off) = ignore; 1-30% (Low) = subtle background influence; 31-65% (Medium) = a noticeable accent; 66-85% (High) = one of the leading scene motifs; 86-100% (Max) = a dominant scene emphasis. Intensity describes influence, not the probability of an event. Even at Max, preserve scene coherence and characterization.]');
+    }
+
     categories.forEach((category) => {
         const directives = groups.get(category.id) || [];
         if (!directives.length) {

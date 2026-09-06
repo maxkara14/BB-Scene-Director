@@ -50,7 +50,7 @@ async function setupUi(options = {}) {
         temporaryDirection,
         ...model, draftState: f.draftState,
         getSettings: () => f.settings, getCategories: () => f.settings.categories,
-        getContext: () => ({}),
+        getContext: () => options.context || ({}),
         getIntensityLabel: (value) => String(value),
         groupDirectivesByCategory: (items) => new Map(f.settings.categories.map((category) => [category.id, items.filter((item) => item.category === category.id)])),
         escapeHtml: (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
@@ -70,6 +70,61 @@ async function setupUi(options = {}) {
     ui.ensureDirectorHud();
     return { ...f, $, ui, handlers, exports, generations, promptUpdates: () => promptUpdates };
 }
+
+test('search matches descriptions and groups without changing scene, prompt or collapsed state', async () => {
+    const f = await setupUi();
+    f.settings.directives[0].description = 'Тихие ПАУЗЫ';
+    f.settings.categories.find(c => c.id === 'focus').label = 'Атмосфера';
+    f.settings.expandedCategories.focus = false;
+    const before = JSON.stringify(f.settings);
+    const updates = f.promptUpdates();
+    const search = value => {
+        f.$('#bb-dir-search-input').val(value);
+        f.handlers.get('#bb-dir-search-input:input:').call(f.$('#bb-dir-search-input'));
+    };
+    f.ui.renderDirectorHud();
+    f.handlers.get('#bb-dir-search-toggle:click:')();
+    assert.equal(f.$('#bb-dir-search-wrap').properties.hidden, false);
+    search(' паузы ');
+    assert.match(f.$('#bb-dir-list').content, /data-id="original"/);
+    assert.match(f.$('#bb-dir-list').content, /is-expanded/);
+    assert.equal(f.$('#bb-dir-search-status').content, 'Найдено: 1');
+    f.handlers.get('#bb-dir-list:click:.bb-dir-section-toggle')();
+    search('АТМОСФЕРА');
+    assert.match(f.$('#bb-dir-list').content, /data-id="original"/);
+    search('<img src=x>');
+    assert.match(f.$('#bb-dir-list').content, /Ничего не найдено/);
+    assert.doesNotMatch(f.$('#bb-dir-list').content, /<img/);
+    f.handlers.get('#bb-dir-search-clear:click:')();
+    assert.match(f.$('#bb-dir-list').content, /is-collapsed/);
+    assert.equal(JSON.stringify(f.settings), before);
+    assert.equal(f.promptUpdates(), updates);
+});
+
+test('search respects inactive filter and resets on Escape and chat changes', async () => {
+    const context = { chatId: 'a' };
+    const f = await setupUi({ context });
+    f.settings.directives[0].active = false;
+    f.settings.hideInactive = true;
+    f.ui.renderDirectorHud();
+    f.handlers.get('#bb-dir-search-toggle:click:')();
+    f.$('#bb-dir-search-input').val('mood');
+    f.handlers.get('#bb-dir-search-input:input:').call(f.$('#bb-dir-search-input'));
+    assert.equal(f.$('#bb-dir-search-status').content, 'Найдено: 0 · неактивные скрыты');
+    f.settings.hideInactive = false;
+    f.ui.renderDirectorHud();
+    assert.equal(f.$('#bb-dir-search-status').content, 'Найдено: 1');
+    f.handlers.get('#bb-dir-search-wrap:keydown:')({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
+    assert.equal(f.$('#bb-dir-search-wrap').properties.inert, true);
+    assert.equal(f.$('#bb-dir-search-input').val(), '');
+    f.handlers.get('#bb-dir-search-toggle:click:')();
+    f.$('#bb-dir-search-input').val('mood');
+    f.handlers.get('#bb-dir-search-input:input:').call(f.$('#bb-dir-search-input'));
+    context.chatId = 'b';
+    f.ui.renderDirectorHud();
+    assert.equal(f.$('#bb-dir-search-wrap').properties.hidden, true);
+    assert.equal(f.$('#bb-dir-search-input').val(), '');
+});
 
 test('UI registers distinct export actions and persists an explicit fallback checkbox', async () => {
     const f = await setupUi();
