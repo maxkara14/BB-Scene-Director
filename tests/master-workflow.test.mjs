@@ -8,6 +8,27 @@ import { createFixture, loadWithHostMocks } from './helpers.mjs';
 const editResponse = JSON.stringify({ changes: [{ op: 'update', id: 'original', directive: { name: 'Mood', value: 80, active: false, category: 'focus' } }] });
 
 for (const mode of ['custom', 'main', 'profile']) {
+    test(`${mode} compact generation accepts four directives while standard rejects an undersized result`, async () => {
+        const response = JSON.stringify({ presetName: 'Compact', categories: model.getDefaultCategories().slice(0, 2).map((category, index) => ({
+            ...category, directives: [1, 2].map(n => ({ name: `Idea ${index}-${n}`, value: 70, active: true })),
+        })) });
+        const compact = await setup({ mode, response, presetSize: 'compact', onBuild: (preferences, master) => {
+            assert.equal(preferences.presetSize, 'compact');
+            // A later preference change must not change validation of this request.
+            master.presetSize = 'standard';
+        } });
+        await compact.workflow.generateMasterPreset('Horror');
+        assert.equal(compact.master.statusLevel, 'success');
+        assert.equal(compact.settings.directives.length, 4);
+        const standard = await setup({ mode, response });
+        await standard.workflow.generateMasterPreset('Horror');
+        assert.equal(standard.master.statusLevel, 'error');
+        assert.equal(standard.settings.presets.length, 1);
+        assert.equal(standard.settings.directives[0].id, 'original');
+    });
+}
+
+for (const mode of ['custom', 'main', 'profile']) {
     test(`${mode} new preset honors description opt-out even if the model ignores it`, async () => {
         for (const generateDescriptions of [false, true]) {
             const f = await setup({ mode, generateDescriptions });
@@ -62,6 +83,7 @@ async function setup(options = {}) {
         apiKey: 'synthetic-key', model: 'custom-model', tavernProfileId: 'profile',
         allowMainFallback: options.allowFallback === true,
         generateDescriptions: options.generateDescriptions !== false,
+        presetSize: options.presetSize || 'standard',
     };
     const state = {};
     const calls = [];
@@ -130,7 +152,10 @@ async function setup(options = {}) {
             ...model, getCategories: () => f.settings.categories, getDirectives: () => f.settings.directives,
             masterMinimumCategoryCount: 3, masterMinimumDirectiveCount: 5,
         }),
-        masterPromptBuilder: { getResolvedMasterContext: () => 'Synthetic character', buildMasterMessages: () => ({ sourceText: 'Synthetic character', systemPrompt: 'System', userPrompt: 'User' }) },
+        masterPromptBuilder: { getResolvedMasterContext: () => 'Synthetic character', buildMasterMessages: (_, preferences) => {
+            options.onBuild?.(preferences, master);
+            return { sourceText: 'Synthetic character', systemPrompt: 'System', userPrompt: 'User' };
+        } },
         normalizeBaseUrl: (url) => String(url || '').replace(/\/+$/, ''),
         notify: (...args) => f.messages.push(args), presetManager: f.manager,
         renderDirectorHud() {}, renderMasterControls() {}, renderPresetsDropdown() {},

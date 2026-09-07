@@ -159,6 +159,7 @@ export function createMasterWorkflow({
         const master = getMasterSettings();
         const editing = options.mode === 'edit';
         const generateDescriptions = master.generateDescriptions !== false;
+        const presetSize = master.presetSize === 'compact' ? 'compact' : 'standard';
         let editRequest;
         let prompt;
         try {
@@ -166,7 +167,7 @@ export function createMasterWorkflow({
                 editRequest = sceneEditor.prepare(userRequest, options.messageCount, masterPromptBuilder.getResolvedMasterContext());
                 prompt = editRequest;
             } else {
-                prompt = masterPromptBuilder.buildMasterMessages(userRequest, { generateDescriptions });
+                prompt = masterPromptBuilder.buildMasterMessages(userRequest, { generateDescriptions, presetSize });
             }
         } catch (error) {
             notify('warning', error.message);
@@ -287,7 +288,7 @@ export function createMasterWorkflow({
                     } else {
                         parsed = masterPresetParser.parseMasterPresetResponse(rawResponse);
                         if (!generateDescriptions) parsed.items = parsed.items.map(item => ({ ...item, description: '' }));
-                        masterPresetParser.validateMasterPresetQuality(parsed.items, { allowPartial: parsed.partial });
+                        masterPresetParser.validateMasterPresetQuality(parsed.items, { allowPartial: parsed.partial, presetSize });
                     }
                     break;
                 } catch (error) {

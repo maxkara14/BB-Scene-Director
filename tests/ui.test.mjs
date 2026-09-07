@@ -153,6 +153,19 @@ test('description preference persists and hides when editing an existing scene',
     assert.equal(f.$('#bb-dir-master-description-field').properties.hidden, true);
 });
 
+test('preset size is saved independently and hidden for scene editing', async () => {
+    const f = await setupUi();
+    f.$('#bb-dir-master-size').val('compact');
+    f.handlers.get('#bb-dir-master-size:change:').call(f.$('#bb-dir-master-size'));
+    assert.equal(f.settings.masterPreset.presetSize, 'compact');
+    f.ui.renderMasterControls();
+    assert.equal(f.$('#bb-dir-master-size').val(), 'compact');
+    f.$('#bb-dir-master-action').val('edit');
+    f.handlers.get('#bb-dir-master-action:change:')();
+    assert.equal(f.$('#bb-dir-master-size-field').properties.hidden, true);
+    assert.equal(f.settings.masterPreset.presetSize, 'compact');
+});
+
 test('edit controls dispatch selected context', async () => {
     const f = await setupUi();
     f.$('#bb-dir-master-action').val('edit');

@@ -196,6 +196,7 @@ function createDefaultMasterPreset() {
         connectionMode: 'main',
         allowMainFallback: false,
         generateDescriptions: true,
+        presetSize: 'standard',
         tavernProfileId: '',
         url: '',
         apiKey: '',
@@ -452,6 +453,7 @@ function normalizeMasterPreset(raw) {
         connectionMode,
         allowMainFallback: master.allowMainFallback === true,
         generateDescriptions: master.generateDescriptions !== false,
+        presetSize: master.presetSize === 'compact' ? 'compact' : 'standard',
         tavernProfileId: typeof master.tavernProfileId === 'string'
             ? master.tavernProfileId.trim()
             : (typeof master.profileId === 'string' ? master.profileId.trim() : ''),

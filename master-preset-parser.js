@@ -710,11 +710,13 @@ export function createMasterPresetParser({
 
     function validateMasterPresetQuality(items, options = {}) {
         const quality = getMasterPresetQuality(items);
-        const minimumCategoryCount = Math.min(masterMinimumCategoryCount, Math.max(1, getCurrentCategories().length));
+        const compact = options.presetSize === 'compact';
+        const minimumDirectiveCount = compact ? 4 : masterMinimumDirectiveCount;
+        const minimumCategoryCount = Math.min(compact ? 2 : masterMinimumCategoryCount, Math.max(1, getCurrentCategories().length));
         const partialMinimumCategoryCount = Math.min(2, Math.max(1, getCurrentCategories().length));
-        const passesFullCheck = quality.itemCount >= masterMinimumDirectiveCount && quality.categoryCount >= minimumCategoryCount;
+        const passesFullCheck = quality.itemCount >= minimumDirectiveCount && quality.categoryCount >= minimumCategoryCount;
         const passesPartialCheck = Boolean(options.allowPartial)
-            && quality.itemCount >= masterMinimumDirectiveCount
+            && quality.itemCount >= minimumDirectiveCount
             && quality.categoryCount >= partialMinimumCategoryCount;
 
         if (!passesFullCheck && !passesPartialCheck) {

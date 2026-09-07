@@ -192,7 +192,9 @@ export function createMasterPromptBuilder({
             'Do not use 0: generated directives must be active steering signals, not disabled placeholders.',
             'Avoid 50 unless the source clearly calls for a deliberately weak neutral influence.',
             'Set every directive active to true. Never generate inactive directives.',
-            'Return 3 to 7 categories and usually 6 to 14 directives total.',
+            options.presetSize === 'compact'
+                ? 'Return a compact preset: 2 to 3 categories and 4 to 6 directives total. Keep only the strongest distinct ideas.'
+                : 'Return 3 to 7 categories and usually 6 to 14 directives total.',
             'Prefer 1 to 4 directives per category.',
             'Avoid duplicates, synonyms, and filler.',
             'Directives must shape tone, pacing, framing, conflict, intimacy, escalation, and scene movement.',

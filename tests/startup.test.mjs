@@ -117,6 +117,15 @@ test('empty and temporary-only scenes do not include intensity guidance', async 
     assert.ok(prompt.endsWith('[END SCENE DIRECTOR]'));
 });
 
+test('master size defaults to standard and compact survives normalization and restart', async () => {
+    assert.equal((await start()).settings.masterPreset.presetSize, 'standard');
+    const f = await start({ schemaVersion: 8, masterPreset: { presetSize: 'compact', generateDescriptions: false } });
+    const restarted = await start(f.settings);
+    assert.equal(restarted.settings.masterPreset.presetSize, 'compact');
+    assert.equal(restarted.settings.masterPreset.generateDescriptions, false);
+    assert.equal((await start({ schemaVersion: 8, masterPreset: { presetSize: 'invalid' } })).settings.masterPreset.presetSize, 'standard');
+});
+
 test('new and upgraded settings disable fallback by default', async () => {
     assert.equal((await start()).settings.masterPreset.allowMainFallback, false);
     assert.equal((await start({ schemaVersion: 8 })).settings.masterPreset.allowMainFallback, false);

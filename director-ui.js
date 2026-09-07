@@ -448,6 +448,8 @@ export function createSceneDirectorUiController({
             generateButton.find('span').text(editing ? 'Предложить изменения' : 'Сгенерировать пресет');
             $('#bb-dir-master-context-field').toggle(editing);
             $('#bb-dir-master-description-field').prop('hidden', editing);
+            $('#bb-dir-master-size-field').prop('hidden', editing);
+            $('#bb-dir-master-size').val(master.presetSize === 'compact' ? 'compact' : 'standard').prop('disabled', state.masterGenerating);
             $('#bb-dir-master-descriptions').prop('checked', master.generateDescriptions !== false).prop('disabled', state.masterGenerating);
             $('#bb-dir-master-request').attr('placeholder', editing
                 ? 'Что изменить в сцене? Например: усиль напряжение, сохрани медленный темп.'
@@ -645,6 +647,7 @@ export function createSceneDirectorUiController({
                                         </select>
                                     </label>
                                     <textarea id="bb-dir-master-request" class="bb-dir-input bb-dir-master-request" rows="2" placeholder="Опишите желаемый стиль: больше хоррора, романтика, экшен..."></textarea>
+                                    <label id="bb-dir-master-size-field" class="bb-dir-field"><span>Размер пресета</span><select id="bb-dir-master-size" class="bb-dir-input"><option value="standard">Обычный · 6–14 директив</option><option value="compact">Компактный · 4–6 директив</option></select></label>
                                     <label id="bb-dir-master-description-field" class="checkbox_label"><input id="bb-dir-master-descriptions" type="checkbox" checked><span>Генерировать описания директив<small class="bb-dir-master-description-help">Описания добавляются в промпт. Без них — только названия и интенсивность.</small></span></label>
                                 </div>
                                 <div class="bb-dir-master-actions">
@@ -958,6 +961,10 @@ export function createSceneDirectorUiController({
             });
         });
         $('#bb-dir-master-action').on('change', renderMasterControls);
+        $('#bb-dir-master-size').on('change', function () {
+            getSettings().masterPreset.presetSize = $(this).val() === 'compact' ? 'compact' : 'standard';
+            saveSettingsDebounced();
+        });
         $('#bb-dir-master-descriptions').on('change', function () {
             getSettings().masterPreset.generateDescriptions = $(this).is(':checked');
             saveSettingsDebounced();

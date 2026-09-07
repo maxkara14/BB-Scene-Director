@@ -57,3 +57,17 @@ test('description opt-out agrees across schema, JSON request and line fallback',
     assert.doesNotMatch(fallback, /true\|concise/);
     assert.ok(builder.buildMasterPresetJsonSchema().properties.categories.items.properties.directives.items.required.includes('description'));
 });
+
+test('compact size changes the requested tree without changing the description choice', async () => {
+    const { createMasterPromptBuilder } = await loadWithHostMocks('master-prompts.js', {
+        '../../../../script.js': { substituteParams: () => 'Character: Alice' },
+    });
+    const builder = createMasterPromptBuilder({ getCategories: model.getDefaultCategories });
+    for (const generateDescriptions of [true, false]) {
+        const prompt = builder.buildMasterMessages('Horror', { presetSize: 'compact', generateDescriptions }).systemPrompt;
+        assert.match(prompt, /2 to 3 categories and 4 to 6 directives/);
+        assert.doesNotMatch(prompt, /6 to 14/);
+        assert.equal(prompt.includes('every directive a non-empty description'), generateDescriptions);
+    }
+    assert.match(builder.buildMasterMessages().systemPrompt, /6 to 14 directives/);
+});
