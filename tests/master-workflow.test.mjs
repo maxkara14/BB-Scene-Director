@@ -8,6 +8,18 @@ import { createFixture, loadWithHostMocks } from './helpers.mjs';
 const editResponse = JSON.stringify({ changes: [{ op: 'update', id: 'original', directive: { name: 'Mood', value: 80, active: false, category: 'focus' } }] });
 
 for (const mode of ['custom', 'main', 'profile']) {
+    test(`${mode} new preset honors description opt-out even if the model ignores it`, async () => {
+        for (const generateDescriptions of [false, true]) {
+            const f = await setup({ mode, generateDescriptions });
+            await f.workflow.generateMasterPreset('Horror');
+            assert.equal(f.master.statusLevel, 'success');
+            assert.ok(f.settings.directives.every(item => item.description === (generateDescriptions ? 'Generated description' : '')));
+            assert.ok(f.settings.presets.at(-1).items.every(item => item.description === (generateDescriptions ? 'Generated description' : '')));
+        }
+    });
+}
+
+for (const mode of ['custom', 'main', 'profile']) {
     test(`${mode} scene editing previews a sparse result before applying, without replacing library presets`, async () => {
         const f = await setup({ mode, response: editResponse });
         f.confirm(false);
@@ -49,6 +61,7 @@ async function setup(options = {}) {
         connectionMode: options.mode || 'custom', url: 'https://example.invalid/v1',
         apiKey: 'synthetic-key', model: 'custom-model', tavernProfileId: 'profile',
         allowMainFallback: options.allowFallback === true,
+        generateDescriptions: options.generateDescriptions !== false,
     };
     const state = {};
     const calls = [];
@@ -57,7 +70,7 @@ async function setup(options = {}) {
         presetName: 'Generated',
         categories: f.settings.categories.map((category, index) => ({
             ...category,
-            directives: [1, 2].map((number) => ({ name: `Direction ${index}-${number}`, value: 70, active: true })),
+            directives: [1, 2].map((number) => ({ name: `Direction ${index}-${number}`, description: 'Generated description', value: 70, active: true })),
         })),
     });
     const connections = await loadWithHostMocks('master-connection.js', {

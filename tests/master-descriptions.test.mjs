@@ -39,3 +39,21 @@ test('JSON and fallback descriptions survive parsing, preset storage and applica
         assert.equal(item.description, '');
     }
 });
+
+test('description opt-out agrees across schema, JSON request and line fallback', async () => {
+    const { createMasterPromptBuilder } = await loadWithHostMocks('master-prompts.js', {
+        '../../../../script.js': { substituteParams: () => 'Character: Alice' },
+    });
+    const builder = createMasterPromptBuilder({ getCategories: model.getDefaultCategories });
+    const options = { generateDescriptions: false };
+    const item = builder.buildMasterPresetJsonSchema(undefined, options).properties.categories.items.properties.directives.items;
+    assert.equal(item.properties.description, undefined);
+    assert.ok(!item.required.includes('description'));
+    const prompt = builder.buildMasterMessages('Horror', options).systemPrompt;
+    assert.match(prompt, /Do not generate directive descriptions/);
+    assert.doesNotMatch(prompt, /"description":|every directive a non-empty/);
+    const fallback = builder.buildMasterCategoryRawMessages(model.getDefaultCategories()[0], options).systemPrompt;
+    assert.match(fallback, /end the line after true/);
+    assert.doesNotMatch(fallback, /true\|concise/);
+    assert.ok(builder.buildMasterPresetJsonSchema().properties.categories.items.properties.directives.items.required.includes('description'));
+});

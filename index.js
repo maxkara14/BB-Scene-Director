@@ -195,6 +195,7 @@ function createDefaultMasterPreset() {
     return {
         connectionMode: 'main',
         allowMainFallback: false,
+        generateDescriptions: true,
         tavernProfileId: '',
         url: '',
         apiKey: '',
@@ -450,6 +451,7 @@ function normalizeMasterPreset(raw) {
     return {
         connectionMode,
         allowMainFallback: master.allowMainFallback === true,
+        generateDescriptions: master.generateDescriptions !== false,
         tavernProfileId: typeof master.tavernProfileId === 'string'
             ? master.tavernProfileId.trim()
             : (typeof master.profileId === 'string' ? master.profileId.trim() : ''),

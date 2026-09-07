@@ -93,3 +93,29 @@ test('temporary summary opens its persistent editor without adding a fourth navi
     f.temporaryButton.events.click();
     assert.equal(f.temporaryInput.value, 'Not yet applied');
 });
+
+test('compact tools use a backdrop and preserve scene state when dismissed', () => {
+    const f = setup();
+    f.screens.open('presets');
+    const backdrop = f.root.querySelector('.bb-dir-screen-backdrop');
+    assert.equal(backdrop.hidden, false);
+    assert.equal(backdrop.inert, false);
+    assert.equal(f.list.inert, true);
+    assert.ok(f.root.className.includes('bb-dir-overlay-mode'));
+    assert.ok(!f.root.className.includes('bb-dir-screen-mode'));
+    assert.equal(f.root.querySelector('#bb-dir-screen-presets').attrs.role, 'dialog');
+    backdrop.events.click();
+    assert.equal(backdrop.hidden, true);
+    assert.equal(f.list.inert, false);
+    assert.equal(f.focused().id, 'bb-dir-open-presets');
+    assert.equal(f.list.scrollTop, 145);
+    f.screens.open('master');
+    const screen = f.root.querySelector('#bb-dir-screen-master');
+    screen.events.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
+    assert.equal(screen.hidden, true);
+    assert.equal(f.input.value, 'Unsaved request');
+    f.screens.open('prompt');
+    assert.equal(backdrop.hidden, true);
+    assert.ok(f.root.className.includes('bb-dir-screen-mode'));
+    assert.ok(!f.root.className.includes('bb-dir-overlay-mode'));
+});

@@ -140,6 +140,19 @@ test('UI registers distinct export actions and persists an explicit fallback che
     assert.equal(f.settings.masterPreset.allowMainFallback, false);
 });
 
+test('description preference persists and hides when editing an existing scene', async () => {
+    const f = await setupUi();
+    const checkbox = f.$('#bb-dir-master-descriptions');
+    checkbox.checked = false;
+    f.handlers.get('#bb-dir-master-descriptions:change:').call(checkbox);
+    assert.equal(f.settings.masterPreset.generateDescriptions, false);
+    f.ui.renderMasterControls();
+    assert.equal(checkbox.properties.checked, false);
+    f.$('#bb-dir-master-action').val('edit');
+    f.handlers.get('#bb-dir-master-action:change:')();
+    assert.equal(f.$('#bb-dir-master-description-field').properties.hidden, true);
+});
+
 test('edit controls dispatch selected context', async () => {
     const f = await setupUi();
     f.$('#bb-dir-master-action').val('edit');

@@ -158,6 +158,7 @@ export function createMasterWorkflow({
 
         const master = getMasterSettings();
         const editing = options.mode === 'edit';
+        const generateDescriptions = master.generateDescriptions !== false;
         let editRequest;
         let prompt;
         try {
@@ -165,7 +166,7 @@ export function createMasterWorkflow({
                 editRequest = sceneEditor.prepare(userRequest, options.messageCount, masterPromptBuilder.getResolvedMasterContext());
                 prompt = editRequest;
             } else {
-                prompt = masterPromptBuilder.buildMasterMessages(userRequest);
+                prompt = masterPromptBuilder.buildMasterMessages(userRequest, { generateDescriptions });
             }
         } catch (error) {
             notify('warning', error.message);
@@ -285,6 +286,7 @@ export function createMasterWorkflow({
                         parsed = sceneEditor.parse(rawResponse, editRequest);
                     } else {
                         parsed = masterPresetParser.parseMasterPresetResponse(rawResponse);
+                        if (!generateDescriptions) parsed.items = parsed.items.map(item => ({ ...item, description: '' }));
                         masterPresetParser.validateMasterPresetQuality(parsed.items, { allowPartial: parsed.partial });
                     }
                     break;

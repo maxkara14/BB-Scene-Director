@@ -1132,6 +1132,26 @@
 .bb-dir-screen-head h3 { margin: 12px 0 0; font-size: 19px; }
 .bb-dir-screen-body { display: flex; flex-direction: column; gap: 22px; flex: 1; min-height: 0; padding: 20px 18px; overflow-y: auto; }
 .bb-dir-screen-body > * { flex-shrink: 0; }
+#bb-director-hud .bb-dir-screen-backdrop { position: absolute; inset: 0; z-index: 2; background: rgba(2, 6, 12, 0.65); }
+#bb-director-hud .bb-dir-screen-backdrop[hidden] { display: none; }
+#bb-director-hud .bb-dir-tool-overlay { position: absolute; z-index: 3; top: calc(env(safe-area-inset-top) + 12px); left: 10px; width: calc(100% - 20px); max-height: calc(100% - env(safe-area-inset-top) - 24px); flex: none; overflow: hidden; border: 1px solid var(--bb-dir-border-strong); border-radius: 14px; background: var(--bb-dir-bg-soft); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); }
+.bb-dir-tool-overlay .bb-dir-screen-head { display: flex; align-items: center; gap: 12px; padding: 12px; flex-shrink: 0; }
+.bb-dir-tool-overlay .bb-dir-screen-head h3 { margin: 0; font-size: 17px; }
+.bb-dir-tool-overlay .bb-dir-screen-head button { flex-shrink: 0; }
+.bb-dir-tool-overlay .bb-dir-screen-body { flex: 0 1 auto; gap: 16px; padding: 16px 12px; overscroll-behavior: contain; }
+.bb-dir-tool-help { margin: 0; font-size: 13px; line-height: 1.5; color: var(--bb-dir-text-soft); }
+#bb-dir-master-description-field { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+#bb-dir-master-description-field[hidden] { display: none; }
+.bb-dir-master-description-help { display: block; margin-top: 4px; color: var(--bb-dir-text-muted); font-size: 12px; line-height: 1.4; }
+.bb-dir-tool-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.bb-dir-tool-group + .bb-dir-tool-group { border-top: 1px solid var(--bb-dir-border); padding-top: 16px; }
+.bb-dir-tool-group h4 { grid-column: 1 / -1; margin: 0 0 2px; font-size: 12px; color: var(--bb-dir-text-soft); }
+#bb-dir-screen-presets .bb-dir-tool-group .bb-dir-btn { min-width: 0; min-height: 40px; padding: 8px 4px; white-space: normal; gap: 6px; }
+.bb-dir-tool-group select, .bb-dir-tool-group #bb-dir-load-preset, .bb-dir-tool-group #bb-dir-save-new-preset, .bb-dir-tool-group #bb-dir-update-preset, .bb-dir-tool-group #bb-dir-export-saved-json { grid-column: 1 / -1; }
+#bb-dir-screen-master.bb-dir-tool-overlay .bb-dir-master-request { min-height: 110px; }
+@media (max-width: 360px) {
+    .bb-dir-tool-group { grid-template-columns: minmax(0, 1fr); }
+}
 #bb-dir-screen-presets .bb-dir-preset-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 #bb-dir-screen-presets .bb-dir-preset-actions .bb-dir-btn { width: auto; min-height: 44px; padding: 8px; gap: 8px; white-space: normal; }
 #bb-dir-screen-presets .bb-dir-preset-actions #bb-dir-save-new-preset { grid-column: 1 / -1; }

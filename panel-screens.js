@@ -2,6 +2,7 @@
 export function createPanelScreens({ getScope, getDocument = () => document }) {
     let hud = null;
     let current = null;
+    let backdrop = null;
     const screens = new Map();
     function close(restore = true) {
         if (!current) return;
@@ -11,6 +12,8 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
         previous.screen.inert = true;
         previous.screen.classList.remove('is-current');
         hud.classList.remove('bb-dir-screen-mode');
+        hud.classList.remove('bb-dir-overlay-mode');
+        backdrop.hidden = true;
         for (const [node, inert] of previous.siblings) node.inert = inert;
         previous.button.setAttribute('aria-expanded', 'false');
         if (restore && previous.scope === getScope()) {
@@ -23,13 +26,14 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
         const entry = screens.get(name);
         if (!entry) return;
         close(false);
-        const siblings = [...hud.children].filter(node => node !== entry.screen).map(node => [node, node.inert]);
+        const siblings = [...hud.children].filter(node => node !== entry.screen && node !== backdrop).map(node => [node, node.inert]);
         current = { ...entry, siblings, scope: getScope(), scroll: hud.querySelector('#bb-dir-list')?.scrollTop || 0 };
         for (const [node] of siblings) node.inert = true;
         entry.screen.hidden = false;
         entry.screen.inert = false;
         entry.screen.classList.add('is-current');
-        hud.classList.add('bb-dir-screen-mode');
+        hud.classList.add(entry.overlay ? 'bb-dir-overlay-mode' : 'bb-dir-screen-mode');
+        backdrop.hidden = !entry.overlay;
         entry.button.setAttribute('aria-expanded', 'true');
         entry.screen.querySelector('button').focus();
     }
@@ -38,6 +42,12 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
         const document = getDocument();
         hud = document.getElementById('bb-director-hud');
         if (!hud || screens.size) return;
+        backdrop = document.createElement('div');
+        backdrop.className = 'bb-dir-screen-backdrop';
+        backdrop.hidden = true;
+        backdrop.setAttribute('aria-hidden', 'true');
+        backdrop.addEventListener('click', () => close());
+        hud.append(backdrop);
         const nav = document.createElement('nav');
         nav.className = 'bb-dir-screen-nav';
         nav.setAttribute('aria-label', 'Инструменты сцены');
@@ -51,6 +61,8 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
             const screen = document.createElement('section');
             screen.id = `bb-dir-screen-${name}`;
             screen.className = 'bb-dir-screen';
+            const overlay = name === 'presets' || name === 'master';
+            if (overlay) { screen.classList.add('bb-dir-tool-overlay'); screen.setAttribute('role', 'dialog'); }
             screen.hidden = true;
             screen.inert = true;
             screen.setAttribute('aria-label', title);
@@ -63,6 +75,27 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
             head.append(back, heading);
             const body = document.createElement('div'); body.className = 'bb-dir-screen-body';
             for (const selector of selectors) { const node = hud.querySelector(selector); if (node) body.append(node); }
+            if (name === 'master') {
+                const help = document.createElement('p');
+                help.className = 'bb-dir-tool-help';
+                help.textContent = 'Создай новый пресет по контексту чата или предложи изменения текущей сцены. Изменения сцены можно просмотреть перед применением.';
+                body.insertBefore(help, body.querySelector('.bb-dir-master-request-wrap'));
+            }
+            if (name === 'presets') {
+                for (const [label, ids] of [
+                    ['Выбранный пресет', ['preset-select', 'load-preset']],
+                    ['Сохранить текущую сцену', ['save-new-preset', 'update-preset']],
+                    ['Библиотека и JSON', ['rename-preset', 'del-preset', 'import-json', 'export-json', 'export-saved-json']],
+                ]) {
+                    const group = document.createElement('div'); group.className = 'bb-dir-tool-group';
+                    const title = document.createElement('h4'); title.textContent = label;
+                    group.append(title);
+                    for (const id of ids) { const node = body.querySelector(`#bb-dir-${id}`); if (node) group.append(node); }
+                    body.append(group);
+                }
+                body.querySelector('.bb-dir-preset-actions')?.remove();
+                body.querySelector('.bb-dir-preset-io')?.remove();
+            }
             screen.append(head, body);
             const button = name === 'temporary' ? hud.querySelector('#bb-dir-temporary-toggle') : document.createElement('button');
             if (!button) continue;
@@ -73,7 +106,7 @@ export function createPanelScreens({ getScope, getDocument = () => document }) {
             }
             button.setAttribute('aria-controls', screen.id); button.setAttribute('aria-expanded', 'false');
             button.addEventListener('click', () => open(name));
-            hud.append(screen); screens.set(name, { button, screen });
+            hud.append(screen); screens.set(name, { button, screen, overlay });
             if (name === 'temporary') {
                 const formBody = screen.querySelector('#bb-dir-temporary-body');
                 if (formBody) { formBody.inert = false; formBody.setAttribute('aria-hidden', 'false'); }

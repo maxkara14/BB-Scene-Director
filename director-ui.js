@@ -447,6 +447,8 @@ export function createSceneDirectorUiController({
             const editing = $('#bb-dir-master-action').val() === 'edit';
             generateButton.find('span').text(editing ? 'Предложить изменения' : 'Сгенерировать пресет');
             $('#bb-dir-master-context-field').toggle(editing);
+            $('#bb-dir-master-description-field').prop('hidden', editing);
+            $('#bb-dir-master-descriptions').prop('checked', master.generateDescriptions !== false).prop('disabled', state.masterGenerating);
             $('#bb-dir-master-request').attr('placeholder', editing
                 ? 'Что изменить в сцене? Например: усиль напряжение, сохрани медленный темп.'
                 : 'Опишите желаемый стиль: больше хоррора, романтика, экшен...');
@@ -643,6 +645,7 @@ export function createSceneDirectorUiController({
                                         </select>
                                     </label>
                                     <textarea id="bb-dir-master-request" class="bb-dir-input bb-dir-master-request" rows="2" placeholder="Опишите желаемый стиль: больше хоррора, романтика, экшен..."></textarea>
+                                    <label id="bb-dir-master-description-field" class="checkbox_label"><input id="bb-dir-master-descriptions" type="checkbox" checked><span>Генерировать описания директив<small class="bb-dir-master-description-help">Описания добавляются в промпт. Без них — только названия и интенсивность.</small></span></label>
                                 </div>
                                 <div class="bb-dir-master-actions">
                                     <button id="bb-dir-master-generate" class="bb-dir-btn interactable bb-dir-with-icon bb-dir-btn-primary">
@@ -955,6 +958,10 @@ export function createSceneDirectorUiController({
             });
         });
         $('#bb-dir-master-action').on('change', renderMasterControls);
+        $('#bb-dir-master-descriptions').on('change', function () {
+            getSettings().masterPreset.generateDescriptions = $(this).is(':checked');
+            saveSettingsDebounced();
+        });
         $('#bb-dir-temporary-arm').on('click', () => {
             const duration = Number($('#bb-dir-temporary-duration').val());
             if (!temporaryDirection.arm(String($('#bb-dir-temporary-text').val() || ''), duration || null)) {
