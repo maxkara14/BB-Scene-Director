@@ -196,7 +196,7 @@ export function createSceneDirectorUiController({
             `<article class="bb-dir-card ${inactiveClass}" data-id="${escapeHtml(directive.id)}">`,
             '<div class="bb-dir-card-head">',
             '<div class="bb-dir-card-main">',
-            `<button type="button" class="bb-dir-open-editor" title="Редактировать: ${escapeHtml(directive.name)}">${escapeHtml(directive.name)}${directive.locked ? '<small>Закреплена</small>' : ''}</button>`,
+            `<button type="button" class="bb-dir-open-editor" title="Редактировать название и описание для промпта: ${escapeHtml(directive.name)}" aria-label="Редактировать название и описание для промпта: ${escapeHtml(directive.name)}">${escapeHtml(directive.name)}<i class="fa-solid fa-pen bb-dir-edit-hint" aria-hidden="true"></i>${directive.locked ? '<small>Закреплена</small>' : ''}</button>`,
             '</div>',
             '<div class="bb-dir-card-actions">',
             `<button class="bb-dir-btn interactable bb-dir-toggle" aria-pressed="${directive.active}" aria-label="${directive.active ? 'Выключить' : 'Включить'} директиву" title="${directive.active ? 'Выключить' : 'Включить'}"><i class="fa-solid ${toggleIcon}"></i></button>`,

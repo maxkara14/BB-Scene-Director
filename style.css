@@ -1184,13 +1184,27 @@
 .bb-dir-editor-message { color: var(--bb-dir-warn); }
 #bb-dir-list .bb-dir-open-editor { display: block; width: 100%; min-width: 0; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--bb-dir-text); font-size: 14px; font-weight: 600; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
 .bb-dir-open-editor small { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; color: var(--bb-dir-text-muted); }
+#bb-dir-list .bb-dir-open-editor { position: relative; padding-right: 22px; border-radius: 6px; }
+#bb-dir-list .bb-dir-open-editor:hover, #bb-dir-list .bb-dir-open-editor:focus-visible { background: var(--bb-dir-accent-soft); color: #cee7ff; }
+.bb-dir-edit-hint { position: absolute; right: 4px; top: 13px; font-size: 11px; color: var(--bb-dir-text-muted); }
+.bb-dir-open-editor:hover .bb-dir-edit-hint, .bb-dir-open-editor:focus-visible .bb-dir-edit-hint { color: var(--bb-dir-accent); }
 #bb-dir-list .bb-dir-card { border: 0; border-top: 1px solid var(--bb-dir-border); border-radius: 0; padding: 14px 0; background: transparent; box-shadow: none; transform: none; }
 #bb-dir-list .bb-dir-card + .bb-dir-card { margin-top: 0; }
-#bb-dir-list .bb-dir-section { border: 0; background: transparent; margin-bottom: 20px; }
-#bb-dir-list .bb-dir-section-head { padding: 8px 0; }
-#bb-dir-list .bb-dir-section-list { padding: 8px 0; }
-#bb-dir-list .bb-dir-section-list.is-closed { padding: 0; }
-#bb-dir-list .bb-dir-section-add { width: 100%; margin-top: 8px; border-style: dashed; text-align: left; }
+/* One surface per group; directive rows keep their lightweight separators. */
+#bb-dir-list .bb-dir-section { border: 1px solid var(--bb-dir-border); background: linear-gradient(125deg, rgba(25, 39, 58, 0.6), rgba(18, 29, 44, 0.67)); border-radius: 12px; margin-bottom: 10px; box-shadow: none; }
+#bb-dir-list .bb-dir-section.is-expanded { border-color: rgba(121, 184, 255, 0.45); background: linear-gradient(135deg, rgba(27, 45, 67, 0.6), rgba(16, 28, 42, 0.67)); }
+#bb-dir-list .bb-dir-section.is-expanded .bb-dir-section-title { color: #cee7ff; }
+#bb-dir-list .bb-dir-section-head { padding: 13px 10px 13px 12px; align-items: start; gap: 6px; border-bottom: 0; }
+#bb-dir-list .bb-dir-section-toggle { align-items: start; gap: 8px; }
+#bb-dir-list .bb-dir-section-arrow { margin-top: 4px; }
+#bb-dir-list .bb-dir-section-count { padding: 3px 6px; margin-top: 2px; border-radius: 5px; background: rgba(32, 50, 71, 0.85); color: #a9c1db; }
+#bb-dir-list .bb-dir-section-hint { margin-top: 7px; line-height: 1.4; }
+#bb-dir-list .bb-dir-section-editor { min-width: 36px; width: 36px; min-height: 36px; padding: 6px; border-color: transparent; background: transparent; box-shadow: none; }
+#bb-dir-list .bb-dir-section-editor:hover { background: var(--bb-dir-accent-soft); border-color: var(--bb-dir-border); }
+#bb-dir-list .bb-dir-section-list { padding: 0 12px 12px; }
+#bb-dir-list .bb-dir-section-list.is-closed { padding: 0 12px; }
+#bb-dir-list .bb-dir-section-add { width: 100%; margin-top: 8px; border-color: transparent; background: rgba(28, 45, 65, 0.2); color: var(--bb-dir-text-soft); text-align: center; }
+#bb-dir-list .bb-dir-section-add:hover { background: var(--bb-dir-accent-soft); border-color: var(--bb-dir-border); }
 .bb-dir-open-editor:focus-visible { outline: 2px solid var(--bb-dir-accent); outline-offset: 3px; }
 
 @media (max-width: 560px) {

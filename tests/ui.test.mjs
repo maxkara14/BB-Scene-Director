@@ -280,7 +280,9 @@ test('directive tooltip preserves full names without introducing HTML attributes
     f.settings.directives[0].name = 'Long title " onfocus="alert(1)';
     f.ui.renderDirectorHud();
     const markup = f.$('#bb-dir-list').content;
-    assert.match(markup, /title="Редактировать: Long title &quot; onfocus=&quot;alert\(1\)"/);
+    assert.match(markup, /title="Редактировать название и описание для промпта: Long title &quot; onfocus=&quot;alert\(1\)"/);
+    assert.match(markup, /aria-label="Редактировать название и описание для промпта:/);
+    assert.match(markup, /fa-pen bb-dir-edit-hint" aria-hidden="true"/);
     assert.doesNotMatch(markup, /" onfocus="/);
     assert.match(markup, /class="bb-dir-open-editor"/);
     assert.match(markup, /aria-label="Интенсивность директивы"/);
