@@ -8,6 +8,22 @@ import { createFixture, loadWithHostMocks } from './helpers.mjs';
 const editResponse = JSON.stringify({ changes: [{ op: 'update', id: 'original', directive: { name: 'Mood', value: 80, active: false, category: 'focus' } }] });
 
 for (const mode of ['custom', 'main', 'profile']) {
+    test(`${mode} sends the chosen focus for new presets but preserves the edit approach`, async () => {
+        for (const generationFocus of ['style', 'scene']) {
+            const f = await setup({ mode, generationFocus, realPrompts: true });
+            await f.workflow.generateMasterPreset('Horror');
+            assert.equal(f.master.statusLevel, 'success');
+            assert.match(JSON.stringify(f.calls), generationFocus === 'style' ? /Generation focus: narrative style/ : /Generation focus: concrete scene/);
+        }
+        const edit = await setup({ mode, generationFocus: 'style', realPrompts: true, response: editResponse });
+        await edit.workflow.generateMasterPreset('Raise tension', { mode: 'edit' });
+        assert.equal(edit.settings.directives[0].value, 80);
+        assert.doesNotMatch(JSON.stringify(edit.calls), /Generation focus:/);
+        assert.match(JSON.stringify(edit.calls), /Preserve the existing directing approach/);
+    });
+}
+
+for (const mode of ['custom', 'main', 'profile']) {
     test(`${mode} compact generation accepts four directives while standard rejects an undersized result`, async () => {
         const response = JSON.stringify({ presetName: 'Compact', categories: model.getDefaultCategories().slice(0, 2).map((category, index) => ({
             ...category, directives: [1, 2].map(n => ({ name: `Idea ${index}-${n}`, value: 70, active: true })),
@@ -84,6 +100,7 @@ async function setup(options = {}) {
         allowMainFallback: options.allowFallback === true,
         generateDescriptions: options.generateDescriptions !== false,
         presetSize: options.presetSize || 'standard',
+        generationFocus: options.generationFocus || 'scene',
     };
     const state = {};
     const calls = [];
@@ -125,6 +142,10 @@ async function setup(options = {}) {
     const { createMasterWorkflow } = await loadWithHostMocks('master-workflow.js', { './master-connection.js': connections }, {
         console: { warn() {}, error() {} },
     });
+    const { createMasterPromptBuilder } = await loadWithHostMocks('master-prompts.js', {
+        '../../../../script.js': { substituteParams: () => 'Character: Alice' },
+    });
+    const realBuilder = createMasterPromptBuilder({ getCategories: () => f.settings.categories });
     const workflow = createMasterWorkflow({
         sceneEditor: createSceneEditController({
             getSettings: () => f.settings, getContext: () => ({ chat: [{ name: 'Actor', mes: 'Recent event' }] }), draftState: f.draftState,
@@ -152,7 +173,7 @@ async function setup(options = {}) {
             ...model, getCategories: () => f.settings.categories, getDirectives: () => f.settings.directives,
             masterMinimumCategoryCount: 3, masterMinimumDirectiveCount: 5,
         }),
-        masterPromptBuilder: { getResolvedMasterContext: () => 'Synthetic character', buildMasterMessages: (_, preferences) => {
+        masterPromptBuilder: options.realPrompts ? realBuilder : { getResolvedMasterContext: () => 'Synthetic character', buildMasterMessages: (_, preferences) => {
             options.onBuild?.(preferences, master);
             return { sourceText: 'Synthetic character', systemPrompt: 'System', userPrompt: 'User' };
         } },

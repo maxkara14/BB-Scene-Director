@@ -160,6 +160,7 @@ export function createMasterWorkflow({
         const editing = options.mode === 'edit';
         const generateDescriptions = master.generateDescriptions !== false;
         const presetSize = master.presetSize === 'compact' ? 'compact' : 'standard';
+        const generationFocus = master.generationFocus === 'style' ? 'style' : 'scene';
         let editRequest;
         let prompt;
         try {
@@ -167,7 +168,7 @@ export function createMasterWorkflow({
                 editRequest = sceneEditor.prepare(userRequest, options.messageCount, masterPromptBuilder.getResolvedMasterContext());
                 prompt = editRequest;
             } else {
-                prompt = masterPromptBuilder.buildMasterMessages(userRequest, { generateDescriptions, presetSize });
+                prompt = masterPromptBuilder.buildMasterMessages(userRequest, { generateDescriptions, presetSize, generationFocus });
             }
         } catch (error) {
             notify('warning', error.message);

@@ -126,6 +126,16 @@ test('master size defaults to standard and compact survives normalization and re
     assert.equal((await start({ schemaVersion: 8, masterPreset: { presetSize: 'invalid' } })).settings.masterPreset.presetSize, 'standard');
 });
 
+test('master focus defaults to scene and style survives a restart', async () => {
+    assert.equal((await start()).settings.masterPreset.generationFocus, 'scene');
+    const f = await start({ schemaVersion: 8, masterPreset: { generationFocus: 'style', presetSize: 'compact', generateDescriptions: false } });
+    const restarted = await start(f.settings);
+    assert.equal(restarted.settings.masterPreset.generationFocus, 'style');
+    assert.equal(restarted.settings.masterPreset.presetSize, 'compact');
+    assert.equal(restarted.settings.masterPreset.generateDescriptions, false);
+    assert.equal((await start({ schemaVersion: 8, masterPreset: { generationFocus: 'invalid' } })).settings.masterPreset.generationFocus, 'scene');
+});
+
 test('new and upgraded settings disable fallback by default', async () => {
     assert.equal((await start()).settings.masterPreset.allowMainFallback, false);
     assert.equal((await start({ schemaVersion: 8 })).settings.masterPreset.allowMainFallback, false);

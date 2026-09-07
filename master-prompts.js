@@ -10,6 +10,12 @@ const MASTER_CONTEXT_TEMPLATE = [
     'Название группы: {{group}}',
 ].join('\n');
 
+function getGenerationFocusInstruction(focus) {
+    return focus === 'style'
+        ? 'Generation focus: narrative style. Build reusable genre, tone, atmosphere, pacing and narrative emphasis directives (for example horror, comedy, tenderness or suspense). Use character context to choose suitable style, not to invent specific events, encounters, missions or character actions. Descriptions, when enabled, explain how to express the style. Change this approach only when the user explicitly requests concrete events.'
+        : 'Generation focus: concrete scene. Build context-specific directives about character dynamics, conflicts, behavior and scene development. Ground them in the supplied character and scenario context; do not invent unsupported lore or write the actual roleplay reply. Follow an explicit user request for a different approach.';
+}
+
 export function createMasterPromptBuilder({
     getCategories,
     fallbackCategoryTargets = {},
@@ -183,6 +189,7 @@ export function createMasterPromptBuilder({
         }
 
         lines.push(
+            getGenerationFocusInstruction(options.generationFocus),
             'Keep directive names short, reusable, concrete, and useful across several replies.',
             options.generateDescriptions === false
                 ? 'Do not generate directive descriptions. Omit the description field; use concise directive names and intensity values. Keep category hints as interface help.'
@@ -303,6 +310,7 @@ export function createMasterPromptBuilder({
             .join('; ');
         const systemPrompt = [
             'You create Scene Director directives for one category in a roleplay preset.',
+            getGenerationFocusInstruction(options.generationFocus),
             'Return plain text only. No JSON. No markdown. No explanations.',
             `Write the directive name${options.generateDescriptions === false ? '' : ' and description'} in ${languageMeta.labelEn}.`,
             'Output exactly one directive in exactly one line in this format:',

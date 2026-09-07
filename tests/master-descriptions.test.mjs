@@ -71,3 +71,22 @@ test('compact size changes the requested tree without changing the description c
     }
     assert.match(builder.buildMasterMessages().systemPrompt, /6 to 14 directives/);
 });
+
+test('focus instructions work with either size and description choice, including line fallback', async () => {
+    const { createMasterPromptBuilder } = await loadWithHostMocks('master-prompts.js', {
+        '../../../../script.js': { substituteParams: () => 'Character: Alice' },
+    });
+    const builder = createMasterPromptBuilder({ getCategories: model.getDefaultCategories });
+    for (const generationFocus of ['style', 'scene']) for (const presetSize of ['compact', 'standard']) for (const generateDescriptions of [true, false]) {
+        const options = { generationFocus, presetSize, generateDescriptions };
+        const prompt = builder.buildMasterMessages('Horror', options).systemPrompt;
+        const fallback = builder.buildMasterCategoryRawMessages(model.getDefaultCategories()[0], options).systemPrompt;
+        const expected = generationFocus === 'style' ? /Generation focus: narrative style/ : /Generation focus: concrete scene/;
+        assert.match(prompt, expected);
+        assert.match(fallback, expected);
+        assert.equal(prompt.includes('4 to 6 directives'), presetSize === 'compact');
+        assert.equal(prompt.includes('every directive a non-empty description'), generateDescriptions);
+        assert.ok(prompt.includes('TOP PRIORITY'));
+    }
+    assert.match(builder.buildMasterMessages().systemPrompt, /Generation focus: concrete scene/);
+});

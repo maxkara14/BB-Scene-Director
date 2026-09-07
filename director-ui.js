@@ -449,6 +449,8 @@ export function createSceneDirectorUiController({
             $('#bb-dir-master-context-field').toggle(editing);
             $('#bb-dir-master-description-field').prop('hidden', editing);
             $('#bb-dir-master-size-field').prop('hidden', editing);
+            $('#bb-dir-master-focus-field').prop('hidden', editing);
+            $('#bb-dir-master-focus').val(master.generationFocus === 'style' ? 'style' : 'scene').prop('disabled', state.masterGenerating);
             $('#bb-dir-master-size').val(master.presetSize === 'compact' ? 'compact' : 'standard').prop('disabled', state.masterGenerating);
             $('#bb-dir-master-descriptions').prop('checked', master.generateDescriptions !== false).prop('disabled', state.masterGenerating);
             $('#bb-dir-master-request').attr('placeholder', editing
@@ -647,6 +649,7 @@ export function createSceneDirectorUiController({
                                         </select>
                                     </label>
                                     <textarea id="bb-dir-master-request" class="bb-dir-input bb-dir-master-request" rows="2" placeholder="Опишите желаемый стиль: больше хоррора, романтика, экшен..."></textarea>
+                                    <label id="bb-dir-master-focus-field" class="bb-dir-field"><span>Фокус генерации</span><select id="bb-dir-master-focus" class="bb-dir-input"><option value="scene">Конкретная сцена</option><option value="style">Стиль повествования</option></select><small class="bb-dir-master-description-help">Стиль — жанр, тон и темп. Сцена — персонажи, конфликты и развитие событий.</small></label>
                                     <label id="bb-dir-master-size-field" class="bb-dir-field"><span>Размер пресета</span><select id="bb-dir-master-size" class="bb-dir-input"><option value="standard">Обычный · 6–14 директив</option><option value="compact">Компактный · 4–6 директив</option></select></label>
                                     <label id="bb-dir-master-description-field" class="checkbox_label"><input id="bb-dir-master-descriptions" type="checkbox" checked><span>Генерировать описания директив<small class="bb-dir-master-description-help">Описания добавляются в промпт. Без них — только названия и интенсивность.</small></span></label>
                                 </div>
@@ -961,6 +964,10 @@ export function createSceneDirectorUiController({
             });
         });
         $('#bb-dir-master-action').on('change', renderMasterControls);
+        $('#bb-dir-master-focus').on('change', function () {
+            getSettings().masterPreset.generationFocus = $(this).val() === 'style' ? 'style' : 'scene';
+            saveSettingsDebounced();
+        });
         $('#bb-dir-master-size').on('change', function () {
             getSettings().masterPreset.presetSize = $(this).val() === 'compact' ? 'compact' : 'standard';
             saveSettingsDebounced();

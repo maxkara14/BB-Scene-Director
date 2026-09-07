@@ -1143,6 +1143,7 @@
 #bb-dir-master-description-field { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
 #bb-dir-master-description-field[hidden] { display: none; }
 #bb-dir-master-size-field[hidden] { display: none; }
+#bb-dir-master-focus-field[hidden] { display: none; }
 .bb-dir-master-description-help { display: block; margin-top: 4px; color: var(--bb-dir-text-muted); font-size: 12px; line-height: 1.4; }
 .bb-dir-tool-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .bb-dir-tool-group + .bb-dir-tool-group { border-top: 1px solid var(--bb-dir-border); padding-top: 16px; }

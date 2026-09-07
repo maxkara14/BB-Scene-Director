@@ -166,6 +166,19 @@ test('preset size is saved independently and hidden for scene editing', async ()
     assert.equal(f.settings.masterPreset.presetSize, 'compact');
 });
 
+test('focus control persists its value and hides for scene edits', async () => {
+    const f = await setupUi();
+    f.$('#bb-dir-master-focus').val('style');
+    f.handlers.get('#bb-dir-master-focus:change:').call(f.$('#bb-dir-master-focus'));
+    assert.equal(f.settings.masterPreset.generationFocus, 'style');
+    f.ui.renderMasterControls();
+    assert.equal(f.$('#bb-dir-master-focus').val(), 'style');
+    f.$('#bb-dir-master-action').val('edit');
+    f.handlers.get('#bb-dir-master-action:change:')();
+    assert.equal(f.$('#bb-dir-master-focus-field').properties.hidden, true);
+    assert.equal(f.settings.masterPreset.generationFocus, 'style');
+});
+
 test('edit controls dispatch selected context', async () => {
     const f = await setupUi();
     f.$('#bb-dir-master-action').val('edit');

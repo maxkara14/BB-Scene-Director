@@ -197,6 +197,7 @@ function createDefaultMasterPreset() {
         allowMainFallback: false,
         generateDescriptions: true,
         presetSize: 'standard',
+        generationFocus: 'scene',
         tavernProfileId: '',
         url: '',
         apiKey: '',
@@ -454,6 +455,7 @@ function normalizeMasterPreset(raw) {
         allowMainFallback: master.allowMainFallback === true,
         generateDescriptions: master.generateDescriptions !== false,
         presetSize: master.presetSize === 'compact' ? 'compact' : 'standard',
+        generationFocus: master.generationFocus === 'style' ? 'style' : 'scene',
         tavernProfileId: typeof master.tavernProfileId === 'string'
             ? master.tavernProfileId.trim()
             : (typeof master.profileId === 'string' ? master.profileId.trim() : ''),
