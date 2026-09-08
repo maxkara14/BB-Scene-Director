@@ -1,5 +1,5 @@
 import {
-    saveSettingsDebounced,
+    saveSettingsDebounced as saveGlobalSettingsDebounced,
     setExtensionPrompt,
     extension_prompt_roles,
     extension_prompt_types,
@@ -30,7 +30,11 @@ import { createPresetTransferController } from './preset-transfer.js';
 import { createMasterPresetParser } from './master-preset-parser.js';
 import { createMasterPromptBuilder } from './master-prompts.js';
 import { createMasterWorkflow } from './master-workflow.js';
+import { createSceneEditController } from './scene-edit.js';
+import { createTemporaryDirectionController } from './temporary-direction.js';
 import { createSceneDirectorUiController } from './director-ui.js';
+import { createDraftState } from './draft-state.js';
+import { createChatState } from './chat-state.js';
 
 const MODULE_NAME = 'BB-Scene-Director';
 const SCHEMA_VERSION = 8;
@@ -52,9 +56,13 @@ const state = {
     revealDirectiveId: null,
 };
 let uiController = null;
+let chatState = null;
+let temporaryDirection = null;
 
-initializeSettings();
-window.bbGetSceneDirectorPrompt = getDirectorPromptText;
+function saveSettingsDebounced(options = {}) {
+    saveGlobalSettingsDebounced();
+    chatState?.save(options);
+}
 
 function initializeSettings() {
     if (!extension_settings[MODULE_NAME]) {
@@ -84,6 +92,11 @@ function initializeSettings() {
 
     if (typeof settings.paused !== 'boolean') {
         settings.paused = false;
+        dirty = true;
+    }
+
+    if (typeof settings.chatScenesInitialized !== 'boolean') {
+        settings.chatScenesInitialized = false;
         dirty = true;
     }
 
@@ -181,6 +194,10 @@ function initializeSettings() {
 function createDefaultMasterPreset() {
     return {
         connectionMode: 'main',
+        allowMainFallback: false,
+        generateDescriptions: true,
+        presetSize: 'standard',
+        generationFocus: 'scene',
         tavernProfileId: '',
         url: '',
         apiKey: '',
@@ -214,11 +231,13 @@ function normalizeCategories(rawCategories, directives = [], presets = []) {
 function createDefaultSettings() {
     return {
         schemaVersion: SCHEMA_VERSION,
+        chatScenesInitialized: false,
         categories: getDefaultCategories(),
         directives: [],
         presets: [],
         useMacro: false,
         paused: false,
+        temporaryDirection: null,
         hideInactive: false,
         previewExpanded: false,
         toolbarCollapsed: true,
@@ -309,12 +328,33 @@ const presetTransfer = createPresetTransferController({
     },
 });
 
+// Legacy draft migration needs the transfer controller to create its backup.
+initializeSettings();
+window.bbGetSceneDirectorPrompt = getDirectorPromptText;
+
+chatState = createChatState({
+    getSettings,
+    getContext: () => SillyTavern.getContext(),
+    createPresetRecord: presetTransfer.createPresetRecord,
+    getUniquePresetName,
+    saveGlobalSettings: saveGlobalSettingsDebounced,
+    notify,
+});
+
+const draftState = createDraftState({ getSettings, getScope: chatState.getScope });
+temporaryDirection = createTemporaryDirectionController({
+    getSettings, getContext: () => SillyTavern.getContext(), isCurrentChat: chatState.isCurrentChat,
+    save: saveSettingsDebounced,
+    changed: () => { uiController?.renderTemporaryDirection(); updateDirectorPrompt(); },
+});
+
 const presetManager = createPresetManager({
     applyExpandedCategoriesFromItems,
     confirmAction,
     createDirective,
     createPresetItemFromDirective,
     createPresetRecord: (...args) => presetTransfer.createPresetRecord(...args),
+    draftState,
     flashButton,
     getCategories,
     getSelectedPresetIndex,
@@ -337,7 +377,9 @@ const presetManager = createPresetManager({
 });
 
 const masterWorkflow = createMasterWorkflow({
+    sceneEditor: createSceneEditController({ getSettings, getContext: () => SillyTavern.getContext(), draftState }),
     abortMasterGeneration,
+    draftState,
     constants: {
         DEFAULT_MASTER_MAX_TOKENS,
         DEFAULT_MASTER_TEMPERATURE,
@@ -363,8 +405,10 @@ const masterWorkflow = createMasterWorkflow({
 });
 
 uiController = createSceneDirectorUiController({
+    temporaryDirection,
     createCategoryRecord,
     createDirective,
+    draftState,
     ensureCategoriesExist,
     ensureCategoryExpansionState,
     escapeHtml,
@@ -408,6 +452,10 @@ function normalizeMasterPreset(raw) {
 
     return {
         connectionMode,
+        allowMainFallback: master.allowMainFallback === true,
+        generateDescriptions: master.generateDescriptions !== false,
+        presetSize: master.presetSize === 'compact' ? 'compact' : 'standard',
+        generationFocus: master.generationFocus === 'style' ? 'style' : 'scene',
         tavernProfileId: typeof master.tavernProfileId === 'string'
             ? master.tavernProfileId.trim()
             : (typeof master.profileId === 'string' ? master.profileId.trim() : ''),
@@ -529,12 +577,16 @@ function groupDirectivesByCategory(directives) {
 }
 
 function getDirectorPromptText() {
+    if (chatState && !chatState.isCurrentChat()) {
+        return '';
+    }
     if (getSettings().paused) {
         return '';
     }
 
     const activeDirectives = getSettings().directives.filter((directive) => directive.active);
-    if (!activeDirectives.length) {
+    const temporaryText = temporaryDirection?.getText() || '';
+    if (!activeDirectives.length && !temporaryText) {
         return '';
     }
 
@@ -547,6 +599,10 @@ function getDirectorPromptText() {
         '[Higher values must have noticeably stronger influence. 0% means ignore that directive. If directives conflict, stronger values take priority.]',
     ];
 
+    if (activeDirectives.length) {
+        lines.push('[Intensity scale: 0% (Off) = ignore; 1-30% (Low) = subtle background influence; 31-65% (Medium) = a noticeable accent; 66-85% (High) = one of the leading scene motifs; 86-100% (Max) = a dominant scene emphasis. Intensity describes influence, not the probability of an event. Even at Max, preserve scene coherence and characterization.]');
+    }
+
     categories.forEach((category) => {
         const directives = groups.get(category.id) || [];
         if (!directives.length) {
@@ -558,16 +614,25 @@ function getDirectorPromptText() {
 
         directives.forEach((directive) => {
             lines.push(`- ${directive.name}: ${directive.value}% ${getIntensityPromptHint(directive.value)}`);
+            if (directive.description) {
+                lines.push(`  Description: ${directive.description.replace(/\s+/g, ' ')}`);
+            }
         });
     });
 
     lines.push('');
+    if (temporaryText) {
+        lines.push('[TEMPORARY SCENE DIRECTION: Apply this instruction naturally in the reply. Do not mention the instruction itself.]');
+        lines.push(temporaryText);
+        lines.push('');
+    }
     lines.push('[END SCENE DIRECTOR]');
 
     return lines.join('\n').trim();
 }
 
 function updateDirectorPrompt() {
+    uiController?.renderDraftStatus();
     const promptText = getDirectorPromptText();
     const previewBox = $('#bb-dir-preview-text');
     const isPaused = Boolean(getSettings().paused);
@@ -740,16 +805,31 @@ function updateHudTopOffset() {
     uiController?.updateHudTopOffset();
 }
 
+function activateChatScene() {
+    if (chatState.activate()) {
+        draftState.clear();
+        abortMasterGeneration('Чат изменился. Сборка пресета отменена.');
+    }
+    renderPresetsDropdown();
+    renderDirectorHud();
+    updateDirectorPrompt();
+}
+
 jQuery(async () => {
     try {
         const { eventSource, event_types } = SillyTavern.getContext();
         const context = SillyTavern.getContext();
+
+        if (event_types.MESSAGE_SENT) eventSource.on(event_types.MESSAGE_SENT, temporaryDirection.userSent);
+        if (event_types.USER_MESSAGE_RENDERED) eventSource.on(event_types.USER_MESSAGE_RENDERED, temporaryDirection.userSent);
+        if (event_types.GENERATION_STARTED) eventSource.on(event_types.GENERATION_STARTED, temporaryDirection.preparingReply);
 
         if (context.registerMacro) {
             context.registerMacro('bb_scene', () => (getSettings().useMacro && !getSettings().paused ? getDirectorPromptText() : ''));
         }
 
         eventSource.on(event_types.APP_READY, () => {
+            activateChatScene();
             setupExtensionSettings();
             ensureDirectorHud();
             renderPresetsDropdown();
@@ -763,12 +843,18 @@ jQuery(async () => {
         });
 
         eventSource.on(event_types.CHAT_CHANGED, () => {
+            activateChatScene();
             updateHudTopOffset();
             toggleHudVisibility();
             renderMasterControls();
         });
 
-        eventSource.on(event_types.GENERATE_AFTER_DATA, (generate_data) => {
+        eventSource.on(event_types.CHAT_RENAMED, () => {
+            activateChatScene();
+        });
+
+        eventSource.on(event_types.GENERATE_AFTER_DATA, (generate_data, dryRun) => {
+            temporaryDirection.replyPrepared(dryRun);
             if (!getSettings().useMacro) {
                 return;
             }

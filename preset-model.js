@@ -126,7 +126,7 @@ export function createCategoryRecord(raw = {}, index = 0) {
     const template = BUILTIN_CATEGORY_TEMPLATE_MAP.get(normalizedId);
     const label = sourceLabel || template?.label || humanizeCategoryId(normalizedId);
     const promptLabel = String(raw.promptLabel || '').trim() || template?.promptLabel || label;
-    const hint = String(raw.hint || '').trim() || template?.hint || '';
+    const hint = typeof raw.hint === 'string' ? raw.hint.trim() : template?.hint || '';
 
     return {
         id: normalizedId,
@@ -278,12 +278,18 @@ export function guessDirectiveCategory(name, categories = getDefaultCategories()
     return getFallbackCategoryId(categories);
 }
 
+export function normalizeDirectiveDescription(value) {
+    return typeof value === 'string' ? value.trim().slice(0, 1000) : '';
+}
+
 export function createDirective(raw = {}, categories = getDefaultCategories()) {
     return {
         id: String(raw.id || makeId('dir')),
         name: String(raw.name || 'Новая директива').trim() || 'Новая директива',
+        description: normalizeDirectiveDescription(raw.description),
         value: snapDirectiveValue(raw.value),
         active: Boolean(raw.active),
+        locked: raw.locked === true,
         category: normalizeCategoryId(raw.category || guessDirectiveCategory(raw.name, categories), categories),
     };
 }
@@ -328,9 +334,11 @@ export function createPresetItemFromDirective(directive) {
     return {
         directiveId: String(directive.id),
         name: directive.name,
+        description: normalizeDirectiveDescription(directive.description),
         category: directive.category,
         value: directive.value,
         active: directive.active !== false,
+        locked: directive.locked === true,
     };
 }
 
@@ -350,9 +358,11 @@ export function normalizePresetItem(raw, directivesByName = new Map(), categorie
     return {
         directiveId: directiveId ? String(directiveId) : '',
         name,
+        description: normalizeDirectiveDescription(raw.description),
         category: normalizeCategoryId(raw.category || directiveByName?.category || guessDirectiveCategory(name, categories), categories),
         value: snapDirectiveValue(raw.value),
         active: raw.active !== false,
+        locked: raw.locked === true,
     };
 }
 

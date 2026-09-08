@@ -1,12 +1,15 @@
+import { createPanelEditor } from './panel-editor.js';
+import { createPanelScreens } from './panel-screens.js';
+
 export function createSceneDirectorUiController({
     createCategoryRecord,
     createDirective,
+    draftState,
     ensureCategoriesExist,
     ensureCategoryExpansionState,
     escapeHtml,
     getCategories,
     getContext,
-    getIntensityLabel,
     getSettings,
     groupDirectivesByCategory,
     masterWorkflow,
@@ -21,8 +24,54 @@ export function createSceneDirectorUiController({
     schedulePromptUpdate,
     snapDirectiveValue,
     state,
+    temporaryDirection,
     updateDirectorPrompt,
 }) {
+    let temporaryScope = null;
+    let temporaryId = null;
+    let searchQuery = '';
+    let searchOpen = false;
+    let searchScope;
+
+    function setSearchOpen(open) {
+        searchOpen = open;
+        $('#bb-dir-search-wrap').prop('hidden', !open).prop('inert', !open);
+        $('#bb-dir-search-toggle').attr('aria-expanded', String(open));
+        if (!open) {
+            searchQuery = '';
+            $('#bb-dir-search-input').val('');
+        }
+    }
+    const panelScreens = createPanelScreens({
+        getDocument: () => document,
+        getScope: () => { const context = getContext(); return JSON.stringify([context.chatId, context.characterId, context.groupId]); },
+    });
+    const panelEditor = createPanelEditor({
+        getSettings, draftState, escapeHtml, notify,
+        getScope: () => { const context = getContext(); return JSON.stringify([context.chatId, context.characterId, context.groupId]); },
+        changed: () => { saveSettingsDebounced(); renderDirectorHud(); updateDirectorPrompt(); },
+        deleteCategory: id => presetManager.handleDeleteCategory(id),
+    });
+
+    function renderTemporaryDirection() {
+        const context = getContext();
+        const scope = JSON.stringify([context.chatId, context.groupId ?? context.characterId]);
+        const note = getSettings().temporaryDirection;
+        if (scope !== temporaryScope || note?.id !== temporaryId) {
+            $('#bb-dir-temporary-text').val(note?.text || '');
+            $('#bb-dir-temporary-duration').val(String(note?.duration ?? (note ? 0 : 1)));
+            temporaryScope = scope;
+            temporaryId = note?.id;
+        }
+        const active = note?.enabled && (note.remaining === null || note.remaining > 0);
+        const status = !note ? 'не задано' : !note.enabled ? 'отключено'
+            : note.remaining === 0 ? 'завершено'
+                : note.remaining === null ? 'до отключения' : `осталось ходов: ${note.remaining}`;
+        $('#bb-dir-temporary-status').text(`${getSettings().paused && active ? 'на паузе · ' : ''}${status}`);
+        $('#bb-dir-temporary-summary').text(active ? note.text : '').prop('hidden', !active);
+        $('#bb-dir-temporary-stop').prop('disabled', !note?.enabled);
+    }
+
     function renderPresetsDropdown() {
         const select = $('#bb-dir-preset-select');
         if (!select.length) {
@@ -48,6 +97,26 @@ export function createSceneDirectorUiController({
     function findDirectiveByCard(cardElement) {
         const directiveId = String($(cardElement).closest('.bb-dir-card').data('id') || '');
         return getSettings().directives.find((directive) => directive.id === directiveId) || null;
+    }
+
+    function renderDraftStatus() {
+        const status = draftState.getStatus();
+        const text = status.presetName
+            ? `${status.presetName} — ${status.dirty ? 'изменён' : 'без изменений'}`
+            : status.dirty ? 'Черновик — не сохранён как пресет' : 'Пустая сцена';
+        $('#bb-dir-draft-status').text(text).toggleClass('is-dirty', status.dirty);
+        $('#bb-dir-undo').prop('disabled', !status.canUndo);
+        $('#bb-dir-redo').prop('disabled', !status.canRedo);
+    }
+
+    function restoreDraft(direction) {
+        if (!draftState[direction]()) {
+            return;
+        }
+        saveSettingsDebounced();
+        renderPresetsDropdown();
+        renderDirectorHud();
+        updateDirectorPrompt();
     }
 
     function updateStealthButtonState() {
@@ -84,18 +153,6 @@ export function createSceneDirectorUiController({
         button.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
     }
 
-    function renderToolbarCollapsedState() {
-        const settings = getSettings();
-        const block = $('#bb-director-hud').find('.bb-dir-toolbar .bb-dir-block');
-        const toggle = $('#bb-dir-toolbar-toggle');
-        const body = $('#bb-dir-toolbar-body');
-        const isCollapsed = Boolean(settings.toolbarCollapsed);
-
-        block.toggleClass('is-collapsed', isCollapsed);
-        toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
-        body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
-    }
-
     function renderFooterCollapsedState() {
         const settings = getSettings();
         const footer = $('#bb-dir-footer');
@@ -106,26 +163,7 @@ export function createSceneDirectorUiController({
         footer.toggleClass('is-collapsed', isCollapsed);
         toggle.attr('aria-expanded', isCollapsed ? 'false' : 'true');
         body.attr('aria-hidden', isCollapsed ? 'true' : 'false');
-    }
-
-    function renderPreviewToggleState() {
-        const settings = getSettings();
-        const toggleButton = $('#bb-dir-preview-toggle');
-        const previewWrap = $('#bb-dir-preview-wrap');
-        const isExpanded = Boolean(settings.previewExpanded);
-        const icon = isExpanded ? 'fa-eye-slash' : 'fa-eye';
-        const label = isExpanded ? 'Скрыть промпт' : 'Показать промпт';
-
-        if (toggleButton.length) {
-            toggleButton.toggleClass('is-active', isExpanded);
-            toggleButton.html(`<i class="fa-solid ${icon}"></i><span>${escapeHtml(label)}</span>`);
-        }
-
-        if (previewWrap.length) {
-            previewWrap.toggleClass('is-open', isExpanded);
-            previewWrap.toggleClass('is-closed', !isExpanded);
-            previewWrap.attr('aria-hidden', isExpanded ? 'false' : 'true');
-        }
+        body.prop('inert', isCollapsed);
     }
 
     function revealDirectiveCardIfNeeded() {
@@ -158,35 +196,30 @@ export function createSceneDirectorUiController({
             `<article class="bb-dir-card ${inactiveClass}" data-id="${escapeHtml(directive.id)}">`,
             '<div class="bb-dir-card-head">',
             '<div class="bb-dir-card-main">',
-            `<input type="text" class="bb-dir-name bb-dir-input" value="${escapeHtml(directive.name)}" placeholder="Название директивы">`,
+            `<button type="button" class="bb-dir-open-editor" title="Редактировать название и описание для промпта: ${escapeHtml(directive.name)}" aria-label="Редактировать название и описание для промпта: ${escapeHtml(directive.name)}">${escapeHtml(directive.name)}<i class="fa-solid fa-pen bb-dir-edit-hint" aria-hidden="true"></i>${directive.locked ? '<small>Закреплена</small>' : ''}</button>`,
             '</div>',
             '<div class="bb-dir-card-actions">',
-            `<button class="bb-dir-btn interactable bb-dir-toggle" title="${directive.active ? 'Выключить' : 'Включить'}"><i class="fa-solid ${toggleIcon}"></i></button>`,
-            '<button class="bb-dir-btn interactable bb-dir-delete" title="Удалить"><i class="fa-solid fa-trash"></i></button>',
+            `<button class="bb-dir-btn interactable bb-dir-toggle" aria-pressed="${directive.active}" aria-label="${directive.active ? 'Выключить' : 'Включить'} директиву" title="${directive.active ? 'Выключить' : 'Включить'}"><i class="fa-solid ${toggleIcon}"></i></button>`,
             '</div>',
             '</div>',
             '<div class="bb-dir-slider-row">',
             '<span class="bb-dir-slider-min">0%</span>',
-            `<input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${directive.value}">`,
+            `<input type="range" class="bb-dir-slider" min="0" max="100" step="5" value="${directive.value}" aria-label="Интенсивность директивы">`,
             `<span class="bb-dir-slider-value">${directive.value}%</span>`,
-            '</div>',
-            '<div class="bb-dir-card-foot">',
-            `<span class="bb-dir-level-pill">${escapeHtml(getIntensityLabel(directive.value))}</span>`,
-            `<select class="bb-dir-category-select bb-dir-input" title="Категория">${renderCategoryOptions(directive.category)}</select>`,
             '</div>',
             '</article>',
         ].join('');
     }
 
-    function renderCategoryOptions(selectedCategory) {
-        const categories = getCategories();
-        return categories.map((category) => {
-            const selected = category.id === normalizeCategoryId(selectedCategory, categories) ? ' selected' : '';
-            return `<option value="${escapeHtml(category.id)}"${selected}>${escapeHtml(category.label)}</option>`;
-        }).join('');
-    }
-
     function renderDirectorHud() {
+        panelEditor.sync();
+        panelScreens.sync();
+        const context = getContext();
+        const scope = JSON.stringify([context.chatId, context.characterId, context.groupId]);
+        if (searchScope !== scope) {
+            searchScope = scope;
+            setSearchOpen(false);
+        }
         const root = $('#bb-dir-list');
         if (!root.length) {
             return;
@@ -196,13 +229,17 @@ export function createSceneDirectorUiController({
         const groups = groupDirectivesByCategory(getSettings().directives);
         const shouldHideInactive = getSettings().hideInactive;
         const expandedCategories = normalizeExpandedCategories(getSettings().expandedCategories, categories);
+        const query = searchQuery.trim().toLowerCase();
+        let matchedCount = 0;
 
         const sections = categories.map((category) => {
             const allDirectives = groups.get(category.id) || [];
-            const directives = allDirectives.filter((directive) => !shouldHideInactive || directive.active);
+            const directives = allDirectives.filter((directive) => (!shouldHideInactive || directive.active)
+                && (!query || [directive.name, directive.description, category.label].some(text => String(text || '').toLowerCase().includes(query))));
+            if (query && !directives.length) return '';
+            matchedCount += directives.length;
             const activeCount = allDirectives.filter((directive) => directive.active).length;
-            const isExpanded = Boolean(expandedCategories[category.id]);
-            const canDeleteCategory = categories.length > 1;
+            const isExpanded = Boolean(query) || Boolean(expandedCategories[category.id]);
             const countText = allDirectives.length
                 ? `${activeCount} активных / ${allDirectives.length}`
                 : 'Пусто';
@@ -217,7 +254,7 @@ export function createSceneDirectorUiController({
         return [
             `<section class="bb-dir-section ${isExpanded ? 'is-expanded' : 'is-collapsed'}" data-category-id="${escapeHtml(category.id)}">`,
             '<div class="bb-dir-section-head">',
-            `<button type="button" class="bb-dir-section-toggle" data-category-id="${escapeHtml(category.id)}" aria-expanded="${isExpanded ? 'true' : 'false'}">`,
+            `<button type="button" class="bb-dir-section-toggle" data-category-id="${escapeHtml(category.id)}" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-disabled="${Boolean(query)}">`,
                 '<div class="bb-dir-section-meta">',
                 '<div class="bb-dir-section-topline">',
                 `<div class="bb-dir-section-title">${escapeHtml(category.label)}</div>`,
@@ -228,25 +265,27 @@ export function createSceneDirectorUiController({
             '<span class="bb-dir-section-arrow"><i class="fa-solid fa-chevron-down"></i></span>',
                 '</button>',
                 '<div class="bb-dir-section-actions">',
-                `<button class="bb-dir-btn interactable bb-dir-section-add" data-category-id="${escapeHtml(category.id)}" title="Добавить в секцию"><i class="fa-solid fa-plus"></i></button>`,
-            `<button class="bb-dir-btn interactable bb-dir-section-delete${canDeleteCategory ? '' : ' is-disabled'}" data-category-id="${escapeHtml(category.id)}" title="Удалить категорию"${canDeleteCategory ? '' : ' disabled'}><i class="fa-solid fa-trash"></i></button>`,
+                `<button type="button" class="bb-dir-btn interactable bb-dir-section-editor" data-category-id="${escapeHtml(category.id)}" title="Редактировать группу" aria-label="Редактировать группу"><i class="fa-solid fa-ellipsis"></i></button>`,
             '</div>',
             '</div>',
-            `<div class="bb-dir-section-list ${isExpanded ? 'is-open' : 'is-closed'}" data-category-id="${escapeHtml(category.id)}" aria-hidden="${isExpanded ? 'false' : 'true'}">`,
+            `<div class="bb-dir-section-list ${isExpanded ? 'is-open' : 'is-closed'}" data-category-id="${escapeHtml(category.id)}" aria-hidden="${isExpanded ? 'false' : 'true'}"${isExpanded ? '' : ' inert'}>`,
             '<div class="bb-dir-section-list-inner">',
             cards,
             emptyState,
+            `<button type="button" class="bb-dir-btn bb-dir-section-add" data-category-id="${escapeHtml(category.id)}">+ Директива</button>`,
             '</div>',
             '</div>',
             '</section>',
         ].join('');
         }).join('');
 
-        root.html(sections);
+        root.html(sections || (query ? '<div class="bb-dir-empty">Ничего не найдено. Измени запрос или очисти поиск.</div>' : ''));
+        $('#bb-dir-search-status').text(query ? `Найдено: ${matchedCount}${shouldHideInactive ? ' · неактивные скрыты' : ''}` : 'Название, описание директивы или название группы');
 
         updateStealthButtonState();
         updatePauseButtonState();
-        renderPreviewToggleState();
+        renderDraftStatus();
+        renderTemporaryDirection();
         requestAnimationFrame(revealDirectiveCardIfNeeded);
     }
 
@@ -336,7 +375,7 @@ export function createSceneDirectorUiController({
             if (state.masterChecking) {
                 status.addClass('is-busy').text('Проверяю подключение...');
             } else if (state.masterGenerating) {
-                status.addClass('is-busy').text('Собираю пресет...');
+                status.addClass('is-busy').text('Мастер готовит результат...');
             } else if (master.statusLevel === 'idle' && availability.label) {
                 status.addClass('is-idle').text(`Для генерации будет использовано: ${availability.label}.`);
             } else {
@@ -405,6 +444,18 @@ export function createSceneDirectorUiController({
                 && availability.available;
 
             generateButton.prop('disabled', !canGenerate);
+            const editing = $('#bb-dir-master-action').val() === 'edit';
+            generateButton.find('span').text(editing ? 'Предложить изменения' : 'Сгенерировать пресет');
+            $('#bb-dir-master-context-field').toggle(editing);
+            $('#bb-dir-master-description-field').prop('hidden', editing);
+            $('#bb-dir-master-size-field').prop('hidden', editing);
+            $('#bb-dir-master-focus-field').prop('hidden', editing);
+            $('#bb-dir-master-focus').val(master.generationFocus === 'style' ? 'style' : 'scene').prop('disabled', state.masterGenerating);
+            $('#bb-dir-master-size').val(master.presetSize === 'compact' ? 'compact' : 'standard').prop('disabled', state.masterGenerating);
+            $('#bb-dir-master-descriptions').prop('checked', master.generateDescriptions !== false).prop('disabled', state.masterGenerating);
+            $('#bb-dir-master-request').attr('placeholder', editing
+                ? 'Что изменить в сцене? Например: усиль напряжение, сохрани медленный темп.'
+                : 'Опишите желаемый стиль: больше хоррора, романтика, экшен...');
         }
 
         return;
@@ -461,6 +512,10 @@ export function createSceneDirectorUiController({
                                     <option value="">Модели не загружены</option>
                                 </select>
                             </label>
+                            <label class="checkbox_label bb-dir-field-wide bb-dir-master-custom-field">
+                                <input id="bb-dir-master-fallback" type="checkbox" ${settings.masterPreset.allowMainFallback ? 'checked' : ''}>
+                                <span>При ошибке отправить запрос основному подключению SillyTavern</span>
+                            </label>
                         </div>
                         <div class="bb-dir-note">Можно использовать текущие настройки SillyTavern, сохранённый профиль Connection Manager или отдельный OpenAI-compatible API.</div>
                         <div class="bb-dir-master-actions">
@@ -508,6 +563,11 @@ export function createSceneDirectorUiController({
             markMasterConnectionDirty({ clearModels: true });
         });
 
+        $('#bb-dir-master-fallback').on('change', function onFallbackChange() {
+            getSettings().masterPreset.allowMainFallback = $(this).is(':checked');
+            saveSettingsDebounced();
+        });
+
         $('#bb-dir-master-model').on('change', function onModelChange() {
             if (getMasterConnectionMode() !== 'custom') {
                 return;
@@ -537,15 +597,14 @@ export function createSceneDirectorUiController({
         }
 
         const hudHtml = `
-            <div id="bb-director-toggle" title="Scene Director">
+            <button type="button" id="bb-director-toggle" title="Scene Director" aria-label="Открыть Scene Director" aria-controls="bb-director-hud" aria-expanded="false">
                 <i class="fa-solid fa-clapperboard"></i>
                 <i class="fa-solid fa-chevron-right" id="bb-dir-arrow"></i>
-            </div>
-            <aside id="bb-director-hud">
+            </button>
+            <aside id="bb-director-hud" aria-label="Scene Director" inert>
                 <div class="bb-dir-head">
                     <div class="bb-dir-kicker">Scene Director</div>
-                    <div class="bb-dir-title">SD</div>
-                    <div class="bb-dir-subtitle">Настройка пресета ролевой игры</div>
+                    <button id="bb-dir-pause-btn" class="bb-dir-btn interactable bb-dir-with-icon" type="button" aria-pressed="false"><i class="fa-solid fa-circle-pause"></i><span>Активен</span></button>
                 </div>
 
                 <div class="bb-dir-toolbar">
@@ -568,12 +627,31 @@ export function createSceneDirectorUiController({
                                     <button id="bb-dir-import-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Импортировать JSON-пресет">
                                         <i class="fa-solid fa-file-import"></i><span>Импорт JSON</span>
                                     </button>
-                                    <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать пресет в JSON">
-                                        <i class="fa-solid fa-file-export"></i><span>Экспорт JSON</span>
+                                    <button id="bb-dir-export-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать текущие значения панели в JSON">
+                                        <i class="fa-solid fa-file-export"></i><span>Экспорт сцены</span>
+                                    </button>
+                                    <button id="bb-dir-export-saved-json" class="bb-dir-btn interactable bb-dir-with-icon" title="Экспортировать сохранённую версию выбранного пресета">
+                                        <i class="fa-solid fa-file-export"></i><span>Экспорт пресета</span>
                                     </button>
                                 </div>
                                 <div class="bb-dir-master-request-wrap">
+                                    <select id="bb-dir-master-action" class="bb-dir-input" aria-label="Действие мастера">
+                                        <option value="new">Новый пресет</option>
+                                        <option value="edit">Изменить текущую сцену</option>
+                                    </select>
+                                    <label id="bb-dir-master-context-field" class="bb-dir-master-context-field" style="display: none">
+                                        Контекст чата
+                                        <select id="bb-dir-master-context" class="bb-dir-input">
+                                            <option value="0">Без сообщений</option>
+                                            <option value="5">5 сообщений</option>
+                                            <option value="10" selected>10 сообщений</option>
+                                            <option value="20">20 сообщений</option>
+                                        </select>
+                                    </label>
                                     <textarea id="bb-dir-master-request" class="bb-dir-input bb-dir-master-request" rows="2" placeholder="Опишите желаемый стиль: больше хоррора, романтика, экшен..."></textarea>
+                                    <label id="bb-dir-master-focus-field" class="bb-dir-field"><span>Фокус генерации</span><select id="bb-dir-master-focus" class="bb-dir-input"><option value="scene">Конкретная сцена</option><option value="style">Стиль повествования</option></select><small class="bb-dir-master-description-help">Стиль — жанр, тон и темп. Сцена — персонажи, конфликты и развитие событий.</small></label>
+                                    <label id="bb-dir-master-size-field" class="bb-dir-field"><span>Размер пресета</span><select id="bb-dir-master-size" class="bb-dir-input"><option value="standard">Обычный · 6–14 директив</option><option value="compact">Компактный · 4–6 директив</option></select></label>
+                                    <label id="bb-dir-master-description-field" class="checkbox_label"><input id="bb-dir-master-descriptions" type="checkbox" checked><span>Генерировать описания директив<small class="bb-dir-master-description-help">Описания добавляются в промпт. Без них — только названия и интенсивность.</small></span></label>
                                 </div>
                                 <div class="bb-dir-master-actions">
                                     <button id="bb-dir-master-generate" class="bb-dir-btn interactable bb-dir-with-icon bb-dir-btn-primary">
@@ -585,6 +663,40 @@ export function createSceneDirectorUiController({
                     </div>
                 </div>
 
+                <div class="bb-dir-draft-bar">
+                    <div id="bb-dir-draft-status" role="status"></div>
+                    <div class="bb-dir-draft-actions">
+                        <button id="bb-dir-search-toggle" type="button" class="bb-dir-btn interactable" aria-label="Поиск по сцене" title="Поиск по сцене" aria-expanded="false" aria-controls="bb-dir-search-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+                        <button id="bb-dir-undo" type="button" class="bb-dir-btn interactable" disabled aria-label="Отменить изменение сцены" title="Отменить изменение сцены (история до перезагрузки страницы)"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
+                        <button id="bb-dir-redo" type="button" class="bb-dir-btn interactable" disabled aria-label="Повторить изменение сцены" title="Повторить изменение сцены"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
+                    </div>
+                </div>
+                <div class="bb-dir-temporary is-collapsed">
+                    <button type="button" id="bb-dir-temporary-toggle" class="bb-dir-temporary-toggle" aria-expanded="false" aria-controls="bb-dir-temporary-body">
+                        <span>Временное указание <span id="bb-dir-temporary-status" role="status"></span><span id="bb-dir-temporary-summary" hidden></span></span>
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                    <div id="bb-dir-temporary-body" class="bb-dir-temporary-body" aria-hidden="true" inert>
+                    <div class="bb-dir-temporary-inner">
+                        <textarea id="bb-dir-temporary-text" class="bb-dir-input" rows="2" maxlength="2000" aria-label="Временное указание" placeholder="Например: пусть раздастся стук в дверь"></textarea>
+                        <select id="bb-dir-temporary-duration" class="bb-dir-input" aria-label="Срок указания">
+                            <option value="1">На 1 ход</option>
+                            <option value="3">На 3 хода</option>
+                            <option value="5">На 5 ходов</option>
+                            <option value="0">До ручного отключения</option>
+                        </select>
+                        <small>Ход начинается твоим сообщением и заканчивается следующим. Рероллы срок не расходуют.</small>
+                        <div class="bb-dir-temporary-actions">
+                            <button id="bb-dir-temporary-arm" class="bb-dir-btn" type="button">Применить</button>
+                            <button id="bb-dir-temporary-stop" class="bb-dir-btn" type="button">Отключить</button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                <div id="bb-dir-search-wrap" hidden inert>
+                    <div class="bb-dir-search-row"><input id="bb-dir-search-input" class="bb-dir-input" type="search" maxlength="200" aria-label="Поиск директив" aria-describedby="bb-dir-search-status" placeholder="Поиск по сцене"><button id="bb-dir-search-clear" type="button" class="bb-dir-btn" aria-label="Очистить поиск" title="Очистить поиск">×</button></div>
+                    <small id="bb-dir-search-status" role="status" aria-live="polite"></small>
+                </div>
                 <div id="bb-dir-list"></div>
 
                 <div class="bb-dir-footer" id="bb-dir-footer">
@@ -597,7 +709,6 @@ export function createSceneDirectorUiController({
                         <div class="bb-dir-footer-body-inner">
                             <div class="bb-dir-footer-actions">
                                 <button id="bb-dir-add-btn" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-folder-plus"></i><span>Добавить категорию</span></button>
-                                <button id="bb-dir-pause-btn" class="bb-dir-btn interactable bb-dir-with-icon" type="button" aria-pressed="false"><i class="fa-solid fa-circle-pause"></i><span>Активен</span></button>
                                 <button id="bb-dir-stealth-btn" class="bb-dir-btn interactable bb-dir-with-icon" title="Скрывать неактивные"><i class="fa-solid fa-eye-slash"></i><span>Скрыть неактивные</span></button>
                                 <button id="bb-dir-preview-toggle" class="bb-dir-btn interactable bb-dir-with-icon"><i class="fa-solid fa-eye"></i><span>Показать промпт</span></button>
                             </div>
@@ -614,13 +725,42 @@ export function createSceneDirectorUiController({
         `;
 
         $('body').append(hudHtml);
+        panelScreens.mount();
+
+        $('#bb-dir-search-toggle').on('click', () => {
+            setSearchOpen(!searchOpen);
+            renderDirectorHud();
+            document.getElementById(searchOpen ? 'bb-dir-search-input' : 'bb-dir-search-toggle')?.focus();
+        });
+        $('#bb-dir-search-input').on('input', function () {
+            searchQuery = String($(this).val() || '');
+            renderDirectorHud();
+        });
+        $('#bb-dir-search-clear').on('click', () => {
+            searchQuery = '';
+            $('#bb-dir-search-input').val('');
+            renderDirectorHud();
+            document.getElementById('bb-dir-search-input')?.focus();
+        });
+        $('#bb-dir-search-wrap').on('keydown', event => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            setSearchOpen(false);
+            renderDirectorHud();
+            document.getElementById('bb-dir-search-toggle')?.focus();
+        });
 
         $('#bb-director-toggle').on('click', function onToggleClick() {
             const hud = $('#bb-director-hud');
             const toggle = $('#bb-director-toggle');
 
             hud.toggleClass('open');
-            toggle.toggleClass('is-open', hud.hasClass('open'));
+            const isOpen = hud.hasClass('open');
+            hud.prop('inert', !isOpen);
+            toggle.toggleClass('is-open', isOpen);
+            toggle.attr('aria-expanded', String(isOpen));
+            toggle.attr('aria-label', isOpen ? 'Закрыть Scene Director' : 'Открыть Scene Director');
 
             if (hud.hasClass('open')) {
                 $('#bb-dir-arrow').removeClass('fa-chevron-right').addClass('fa-chevron-left');
@@ -630,7 +770,15 @@ export function createSceneDirectorUiController({
         });
 
         $('#bb-dir-list')
+            .on('click', '.bb-dir-open-editor', function onOpenDirectiveEditor() {
+                const directive = findDirectiveByCard(this);
+                if (directive) panelEditor.open('directive', directive.id);
+            })
+            .on('click', '.bb-dir-section-editor', function onOpenGroupEditor() {
+                panelEditor.open('group', String($(this).data('categoryId') || ''));
+            })
             .on('click', '.bb-dir-section-toggle', function onSectionToggle() {
+                if (searchQuery.trim()) return;
                 const categoryId = normalizeCategoryId(String($(this).data('categoryId') || ''), getSettings().categories);
                 const currentState = normalizeExpandedCategories(getSettings().expandedCategories, getSettings().categories);
                 const nextExpanded = !currentState[categoryId];
@@ -645,6 +793,7 @@ export function createSceneDirectorUiController({
                 sectionList.toggleClass('is-open', nextExpanded);
                 sectionList.toggleClass('is-closed', !nextExpanded);
                 sectionList.attr('aria-hidden', nextExpanded ? 'false' : 'true');
+                sectionList.prop('inert', !nextExpanded);
             })
             .on('input', '.bb-dir-slider', function onSliderInput() {
                 const directive = findDirectiveByCard(this);
@@ -652,12 +801,20 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
-                directive.value = snapDirectiveValue($(this).val());
+                const nextValue = snapDirectiveValue($(this).val());
+                if (nextValue === directive.value) {
+                    return;
+                }
+                draftState.checkpoint(`slider:${directive.id}`);
+                directive.value = nextValue;
                 const card = $(this).closest('.bb-dir-card');
                 card.find('.bb-dir-slider-value').text(`${directive.value}%`);
-                card.find('.bb-dir-level-pill').text(getIntensityLabel(directive.value));
-                saveSettingsDebounced();
+                saveSettingsDebounced({ deferMetadata: true });
                 schedulePromptUpdate();
+            })
+            .on('change', '.bb-dir-slider', function onSliderChange() {
+                draftState.endGroup();
+                saveSettingsDebounced();
             })
             .on('click', '.bb-dir-toggle', function onToggleDirective() {
                 const directive = findDirectiveByCard(this);
@@ -665,41 +822,8 @@ export function createSceneDirectorUiController({
                     return;
                 }
 
+                draftState.checkpoint();
                 directive.active = !directive.active;
-                saveSettingsDebounced();
-                renderDirectorHud();
-                updateDirectorPrompt();
-            })
-            .on('click', '.bb-dir-delete', function onDeleteDirective() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) {
-                    return;
-                }
-
-                getSettings().directives = getSettings().directives.filter((item) => item.id !== directive.id);
-                saveSettingsDebounced();
-                renderDirectorHud();
-                updateDirectorPrompt();
-            })
-            .on('change', '.bb-dir-name', function onDirectiveRename() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) {
-                    return;
-                }
-
-                directive.name = String($(this).val() || '').trim() || 'Новая директива';
-                saveSettingsDebounced();
-                updateDirectorPrompt();
-            })
-            .on('change', '.bb-dir-category-select', function onCategoryChange() {
-                const directive = findDirectiveByCard(this);
-                if (!directive) {
-                    return;
-                }
-
-                directive.category = normalizeCategoryId($(this).val(), getSettings().categories);
-                ensureCategoryExpansionState(directive.category, true);
-                state.revealDirectiveId = directive.id;
                 saveSettingsDebounced();
                 renderDirectorHud();
                 updateDirectorPrompt();
@@ -712,6 +836,7 @@ export function createSceneDirectorUiController({
                     value: 50,
                     active: true,
                 });
+                draftState.checkpoint();
                 getSettings().directives.push(directive);
                 ensureCategoryExpansionState(categoryId, true);
                 state.revealDirectiveId = directive.id;
@@ -719,17 +844,10 @@ export function createSceneDirectorUiController({
                 saveSettingsDebounced();
                 renderDirectorHud();
                 updateDirectorPrompt();
-            })
-            .on('click', '.bb-dir-section-delete', function onSectionDelete() {
-                const categoryId = String($(this).data('categoryId') || '').trim();
-                if (!categoryId) {
-                    return;
-                }
-
-                void presetManager.handleDeleteCategory(categoryId);
             });
 
         $('#bb-dir-add-btn').on('click', async function onAddCategoryClick() {
+            const signature = draftState.getSignature();
             const name = await promptText('Название новой категории:', '', {
                 okButton: 'Дальше',
                 cancelButton: 'Отмена',
@@ -739,6 +857,10 @@ export function createSceneDirectorUiController({
                 return;
             }
 
+            if (draftState.getSignature() !== signature) {
+                notify('warning', 'Чат или сцена изменились. Повтори добавление категории в текущей сцене.');
+                return;
+            }
             const label = name.trim();
             const draftCategory = createCategoryRecord({
                 id: label,
@@ -759,6 +881,11 @@ export function createSceneDirectorUiController({
                 cancelButton: 'Пропустить',
             });
 
+            if (draftState.getSignature() !== signature) {
+                notify('warning', 'Чат или сцена изменились. Повтори добавление категории в текущей сцене.');
+                return;
+            }
+            draftState.checkpoint();
             ensureCategoriesExist([{
                 ...draftCategory,
                 hint: String(hint || '').trim(),
@@ -786,7 +913,16 @@ export function createSceneDirectorUiController({
             void presetManager.handleDeletePreset();
         });
         $('#bb-dir-export-json').on('click', function onExportPresetClick() {
-            void presetTransfer.handleExportPreset();
+            void presetTransfer.handleExportPreset('draft');
+        });
+        $('#bb-dir-export-saved-json').on('click', function onExportSavedPresetClick() {
+            void presetTransfer.handleExportPreset('saved');
+        });
+        $('#bb-dir-undo').on('click', function onUndoClick() {
+            restoreDraft('undo');
+        });
+        $('#bb-dir-redo').on('click', function onRedoClick() {
+            restoreDraft('redo');
         });
         $('#bb-dir-import-json').on('click', function onImportPresetClick() {
             const input = presetTransfer.createImportFileInput();
@@ -811,18 +947,7 @@ export function createSceneDirectorUiController({
             saveSettingsDebounced();
             updateDirectorPrompt();
             updatePauseButtonState();
-        });
-
-        $('#bb-dir-preview-toggle').on('click', function onPreviewToggle() {
-            getSettings().previewExpanded = !getSettings().previewExpanded;
-            saveSettingsDebounced();
-            renderPreviewToggleState();
-        });
-
-        $('#bb-dir-toolbar-toggle').on('click', function onToolbarToggleClick() {
-            getSettings().toolbarCollapsed = !getSettings().toolbarCollapsed;
-            saveSettingsDebounced();
-            renderToolbarCollapsedState();
+            renderTemporaryDirection();
         });
 
         $('#bb-dir-footer-toggle').on('click', function onFooterToggleClick() {
@@ -833,13 +958,40 @@ export function createSceneDirectorUiController({
 
         $('#bb-dir-master-generate').on('click', function onGenerateMaster() {
             const userRequest = String($('#bb-dir-master-request').val() || '').trim();
-            void masterWorkflow.generateMasterPreset(userRequest);
+            void masterWorkflow.generateMasterPreset(userRequest, {
+                mode: $('#bb-dir-master-action').val() === 'edit' ? 'edit' : 'new',
+                messageCount: Number($('#bb-dir-master-context').val() ?? 10),
+            });
+        });
+        $('#bb-dir-master-action').on('change', renderMasterControls);
+        $('#bb-dir-master-focus').on('change', function () {
+            getSettings().masterPreset.generationFocus = $(this).val() === 'style' ? 'style' : 'scene';
+            saveSettingsDebounced();
+        });
+        $('#bb-dir-master-size').on('change', function () {
+            getSettings().masterPreset.presetSize = $(this).val() === 'compact' ? 'compact' : 'standard';
+            saveSettingsDebounced();
+        });
+        $('#bb-dir-master-descriptions').on('change', function () {
+            getSettings().masterPreset.generateDescriptions = $(this).is(':checked');
+            saveSettingsDebounced();
+        });
+        $('#bb-dir-temporary-arm').on('click', () => {
+            const duration = Number($('#bb-dir-temporary-duration').val());
+            if (!temporaryDirection.arm(String($('#bb-dir-temporary-text').val() || ''), duration || null)) {
+                notify('warning', 'Введи временное указание в открытом чате.');
+                return;
+            }
+            panelScreens.close();
+        });
+        $('#bb-dir-temporary-stop').on('click', () => {
+            temporaryDirection.stop();
+            panelScreens.close();
         });
 
         renderPresetsDropdown();
         renderDirectorHud();
         renderMasterControls();
-        renderToolbarCollapsedState();
         renderFooterCollapsedState();
         updateDirectorPrompt();
     }
@@ -857,7 +1009,10 @@ export function createSceneDirectorUiController({
         toggleButton.hide();
         if (hud.hasClass('open')) {
             hud.removeClass('open');
+            hud.prop('inert', true);
             toggleButton.removeClass('is-open');
+            toggleButton.attr('aria-expanded', 'false');
+            toggleButton.attr('aria-label', 'Открыть Scene Director');
             $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
         }
     }
@@ -890,6 +1045,8 @@ export function createSceneDirectorUiController({
     return {
         ensureDirectorHud,
         renderDirectorHud,
+        renderDraftStatus,
+        renderTemporaryDirection,
         renderMasterControls,
         renderPresetsDropdown,
         setupExtensionSettings,

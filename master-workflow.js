@@ -18,6 +18,7 @@ import {
 
 export function createMasterWorkflow({
     abortMasterGeneration,
+    draftState,
     constants,
     getContext,
     getMasterSettings,
@@ -31,6 +32,7 @@ export function createMasterWorkflow({
     renderPresetsDropdown,
     saveSettingsDebounced,
     state,
+    sceneEditor,
     updateDirectorPrompt,
 }) {
     const {
@@ -148,14 +150,31 @@ export function createMasterWorkflow({
         }
     }
 
-    async function generateMasterPreset(userRequest = '') {
+    async function generateMasterPreset(userRequest = '', options = {}) {
         if (state.masterGenerating) {
-            notify('info', 'Сборка пресета уже идёт.');
+            notify('info', 'Мастер уже готовит результат.');
             return;
         }
 
         const master = getMasterSettings();
-        const { sourceText, systemPrompt, userPrompt } = masterPromptBuilder.buildMasterMessages(userRequest);
+        const editing = options.mode === 'edit';
+        const generateDescriptions = master.generateDescriptions !== false;
+        const presetSize = master.presetSize === 'compact' ? 'compact' : 'standard';
+        const generationFocus = master.generationFocus === 'style' ? 'style' : 'scene';
+        let editRequest;
+        let prompt;
+        try {
+            if (editing) {
+                editRequest = sceneEditor.prepare(userRequest, options.messageCount, masterPromptBuilder.getResolvedMasterContext());
+                prompt = editRequest;
+            } else {
+                prompt = masterPromptBuilder.buildMasterMessages(userRequest, { generateDescriptions, presetSize, generationFocus });
+            }
+        } catch (error) {
+            notify('warning', error.message);
+            return;
+        }
+        const { sourceText, systemPrompt, userPrompt } = prompt;
         if (!sourceText) {
             notify('warning', 'Не удалось собрать данные из макросов персонажа и персоны.');
             return;
@@ -174,15 +193,20 @@ export function createMasterWorkflow({
             return;
         }
 
+        if ((!editing && !await presetManager.confirmDraftReplacement()) || state.masterGenerating) {
+            return;
+        }
+        const originalDraftSignature = draftState.getSignature();
+        const allowMainFallback = master.allowMainFallback === true;
         const context = getContext();
         const { controller, cleanup } = createTimedAbortController(
             MASTER_REQUEST_TIMEOUT_MS,
-            'Сборка пресета заняла слишком много времени.',
+            'Запрос к мастеру занял слишком много времени.',
         );
         state.masterAbortController = controller;
 
         const loaderHandle = context.loader?.show({
-            message: 'Собираю пресет...',
+            message: editing ? 'Готовлю изменения сцены...' : 'Собираю пресет...',
             blocking: true,
             onStop: () => abortMasterGeneration('Отменено пользователем.'),
         });
@@ -192,6 +216,7 @@ export function createMasterWorkflow({
 
         let lastRawMasterResponse = null;
         let parsed = null;
+        let loaderHidden = false;
 
         try {
             const messages = [
@@ -232,11 +257,11 @@ export function createMasterWorkflow({
                         });
                     }
                 } catch (error) {
-                    if (isAbortLikeError(error)) {
+                    if (controller.signal.aborted || isAbortLikeError(error)) {
                         throw error;
                     }
 
-                    const mainFallback = connection.mode === MASTER_CONNECTION_MODES.CUSTOM
+                    const mainFallback = connection.mode === MASTER_CONNECTION_MODES.CUSTOM && allowMainFallback
                         ? tryGetMainMasterConnection(normalizeBaseUrl)
                         : null;
 
@@ -245,6 +270,7 @@ export function createMasterWorkflow({
                     }
 
                     console.warn('[BB Scene Director] Custom master connection failed, falling back to the main SillyTavern connection.', error);
+                    notify('warning', 'Отдельный API недоступен. Использую основное подключение SillyTavern согласно настройке резерва.');
                     connection = mainFallback;
                     rawResponse = await requestMasterPresetViaMainConnection({
                         context,
@@ -258,8 +284,13 @@ export function createMasterWorkflow({
                 lastRawMasterResponse = rawResponse;
 
                 try {
-                    parsed = masterPresetParser.parseMasterPresetResponse(rawResponse);
-                    masterPresetParser.validateMasterPresetQuality(parsed.items, { allowPartial: parsed.partial });
+                    if (editing) {
+                        parsed = sceneEditor.parse(rawResponse, editRequest);
+                    } else {
+                        parsed = masterPresetParser.parseMasterPresetResponse(rawResponse);
+                        if (!generateDescriptions) parsed.items = parsed.items.map(item => ({ ...item, description: '' }));
+                        masterPresetParser.validateMasterPresetQuality(parsed.items, { allowPartial: parsed.partial, presetSize });
+                    }
                     break;
                 } catch (error) {
                     if (isAbortLikeError(error)) {
@@ -286,19 +317,46 @@ export function createMasterWorkflow({
                 throw new Error('Не удалось собрать пресет после повторной попытки.');
             }
 
+            if (controller.signal.aborted) {
+                throw new Error('Генерация отменена.');
+            }
+            if (editing) {
+                // The request timeout and blocking loader must not cover human review time.
+                cleanup();
+                if (loaderHandle?.hide) await loaderHandle.hide();
+                loaderHidden = true;
+                const result = await sceneEditor.review(parsed, editRequest, controller.signal);
+                const messages = {
+                    applied: 'Выбранные изменения применены. Их можно отменить кнопкой «Отменить».',
+                    cancelled: 'Изменения не применены.',
+                    empty: 'Мастер не предложил изменений доступных директив.',
+                    stale: 'Чат или сцена изменились либо запрос отменён. Результат не применён.',
+                };
+                master.statusLevel = result === 'applied' ? 'success' : 'idle';
+                master.statusText = messages[result];
+                saveSettingsDebounced();
+                renderDirectorHud();
+                updateDirectorPrompt();
+                notify(result === 'applied' ? 'success' : 'info', messages[result]);
+                return;
+            }
+            const shouldApply = draftState.getSignature() === originalDraftSignature;
             const generatedPresetEntry = presetManager.saveGeneratedPreset({
                 presetName: parsed.presetName,
                 items: parsed.items,
                 categories: parsed.categories,
                 partial: parsed.partial,
+                select: false,
             });
 
-            presetManager.applyPresetItems(parsed.items, {
-                clearSelectedPreset: false,
-                expandTouchedCategories: true,
-                replaceCategories: Array.isArray(parsed.categories) && parsed.categories.length > 0,
-                categories: parsed.categories,
-            });
+            if (shouldApply) {
+                presetManager.applyPresetItems(parsed.items, {
+                    presetIndex: generatedPresetEntry.index,
+                    expandTouchedCategories: true,
+                    replaceCategories: Array.isArray(parsed.categories) && parsed.categories.length > 0,
+                    categories: parsed.categories,
+                });
+            }
 
             master.lastPresetName = generatedPresetEntry.preset.name;
             master.statusLevel = 'success';
@@ -314,11 +372,15 @@ export function createMasterWorkflow({
                 console.warn('[BB Scene Director] Master preset was partially recovered from a truncated response.');
             }
 
-            notify('success', parsed.partial
-                ? `Пресет "${generatedPresetEntry.preset.name}" частично восстановлен, сохранён и применён.`
-                : `Пресет "${generatedPresetEntry.preset.name}" собран, сохранён и применён.`);
+            if (!shouldApply) {
+                notify('info', 'Пресет сохранён в библиотеку. Текущая сцена изменилась за время генерации, поэтому результат не применён.');
+            } else {
+                notify('success', parsed.partial
+                    ? `Пресет "${generatedPresetEntry.preset.name}" частично восстановлен, сохранён и применён.`
+                    : `Пресет "${generatedPresetEntry.preset.name}" собран, сохранён и применён.`);
+            }
         } catch (error) {
-            const aborted = isAbortLikeError(error);
+            const aborted = controller.signal.aborted || isAbortLikeError(error);
             master.statusLevel = aborted ? 'idle' : 'error';
             master.statusText = aborted
                 ? String(controller.signal.reason || error.message || 'Сборка пресета отменена.')
@@ -326,7 +388,7 @@ export function createMasterWorkflow({
             saveSettingsDebounced();
             renderMasterControls();
 
-            if (lastRawMasterResponse) {
+            if (lastRawMasterResponse && !editing) {
                 console.warn('[BB Scene Director] Raw master response snippet:', describeMasterResponseSnippet(lastRawMasterResponse));
             }
             console.error('[BB Scene Director] Master preset generation failed.', error);
@@ -337,7 +399,7 @@ export function createMasterWorkflow({
             state.masterGenerating = false;
             renderMasterControls();
 
-            if (loaderHandle?.hide) {
+            if (!loaderHidden && loaderHandle?.hide) {
                 await loaderHandle.hide();
             }
         }

@@ -547,6 +547,7 @@ export function createMasterPresetParser({
                             .filter((directive) => directive.category === category.id)
                             .map((directive) => ({
                                 name: directive.name,
+                                description: directive.description,
                                 value: directive.value,
                                 active: directive.active !== false,
                             })),
@@ -631,8 +632,7 @@ export function createMasterPresetParser({
 
         const parseLineTokens = (line) => line
             .split('|')
-            .map((part) => String(part || '').trim())
-            .filter(Boolean);
+            .map((part) => String(part || '').trim());
 
         for (const rawLine of text.split('\n')) {
             const line = String(rawLine || '').trim().replace(/^[*-]\s*/, '');
@@ -664,16 +664,18 @@ export function createMasterPresetParser({
             let name = '';
             let value = '';
             let active = 'true';
+            let description = '';
 
             if (/^\d+%?$/i.test(tokens[1])) {
-                [category, value, name, active = 'true'] = tokens;
+                [category, value, name, active = 'true', description = ''] = tokens;
             } else {
-                [category, name, value, active = 'true'] = tokens;
+                [category, name, value, active = 'true', description = ''] = tokens;
             }
 
             collectedItems.push({
                 category,
                 name: String(name || '').replace(/["']/g, '').trim(),
+                description,
                 value: Number(String(value || '').replace(/[^\d.-]/g, '')),
                 active: !/^(false|off|0|no)$/i.test(String(active || '').trim()),
             });
@@ -708,11 +710,13 @@ export function createMasterPresetParser({
 
     function validateMasterPresetQuality(items, options = {}) {
         const quality = getMasterPresetQuality(items);
-        const minimumCategoryCount = Math.min(masterMinimumCategoryCount, Math.max(1, getCurrentCategories().length));
+        const compact = options.presetSize === 'compact';
+        const minimumDirectiveCount = compact ? 4 : masterMinimumDirectiveCount;
+        const minimumCategoryCount = Math.min(compact ? 2 : masterMinimumCategoryCount, Math.max(1, getCurrentCategories().length));
         const partialMinimumCategoryCount = Math.min(2, Math.max(1, getCurrentCategories().length));
-        const passesFullCheck = quality.itemCount >= masterMinimumDirectiveCount && quality.categoryCount >= minimumCategoryCount;
+        const passesFullCheck = quality.itemCount >= minimumDirectiveCount && quality.categoryCount >= minimumCategoryCount;
         const passesPartialCheck = Boolean(options.allowPartial)
-            && quality.itemCount >= masterMinimumDirectiveCount
+            && quality.itemCount >= minimumDirectiveCount
             && quality.categoryCount >= partialMinimumCategoryCount;
 
         if (!passesFullCheck && !passesPartialCheck) {

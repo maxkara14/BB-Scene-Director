@@ -10,6 +10,12 @@ const MASTER_CONTEXT_TEMPLATE = [
     'Название группы: {{group}}',
 ].join('\n');
 
+function getGenerationFocusInstruction(focus) {
+    return focus === 'style'
+        ? 'Generation focus: narrative style. Build reusable genre, tone, atmosphere, pacing and narrative emphasis directives (for example horror, comedy, tenderness or suspense). Use character context to choose suitable style, not to invent specific events, encounters, missions or character actions. Descriptions, when enabled, explain how to express the style. Change this approach only when the user explicitly requests concrete events.'
+        : 'Generation focus: concrete scene. Build context-specific directives about character dynamics, conflicts, behavior and scene development. Ground them in the supplied character and scenario context; do not invent unsupported lore or write the actual roleplay reply. Follow an explicit user request for a different approach.';
+}
+
 export function createMasterPromptBuilder({
     getCategories,
     fallbackCategoryTargets = {},
@@ -19,8 +25,8 @@ export function createMasterPromptBuilder({
         return Number.isFinite(value) && value > 0 ? value : fallback;
     }
 
-    function buildMasterPresetJsonSchema(categories = getCategories()) {
-        return {
+    function buildMasterPresetJsonSchema(categories = getCategories(), options = {}) {
+        const schema = {
             $schema: 'http://json-schema.org/draft-04/schema#',
             type: 'object',
             properties: {
@@ -68,6 +74,11 @@ export function createMasterPromptBuilder({
                                             minLength: 1,
                                             maxLength: 60,
                                         },
+                                        description: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            maxLength: 1000,
+                                        },
                                         value: {
                                             type: 'integer',
                                             minimum: 5,
@@ -79,7 +90,7 @@ export function createMasterPromptBuilder({
                                             enum: [true],
                                         },
                                     },
-                                    required: ['name', 'value', 'active'],
+                                    required: ['name', 'description', 'value', 'active'],
                                     additionalProperties: false,
                                 },
                             },
@@ -92,6 +103,12 @@ export function createMasterPromptBuilder({
             required: ['presetName', 'categories'],
             additionalProperties: false,
         };
+        if (options.generateDescriptions === false) {
+            const item = schema.properties.categories.items.properties.directives.items;
+            delete item.properties.description;
+            item.required = item.required.filter(key => key !== 'description');
+        }
+        return schema;
     }
 
     function getResolvedMasterContext() {
@@ -148,7 +165,7 @@ export function createMasterPromptBuilder({
         return map[languageCode] || map.en;
     }
 
-    function buildMasterSystemPrompt(categories, languageMeta, userRequest = '') {
+    function buildMasterSystemPrompt(categories, languageMeta, userRequest = '', options = {}) {
         const categorySummary = categories
             .map((category) => `- ${category.id}: ${category.label}${category.hint ? ` (${category.hint})` : ''}`)
             .join('\n');
@@ -158,7 +175,7 @@ export function createMasterPromptBuilder({
         const lines = [
             'You are a scene-directing preset generator for roleplay chats.',
             'Return JSON only. No markdown, no prose, no explanations.',
-            `Write presetName, category labels, category hints, and directive names in ${languageMeta.labelEn}.`,
+            `Write presetName, category labels, category hints, directive names${options.generateDescriptions === false ? '' : ' and descriptions'} in ${languageMeta.labelEn}.`,
             'You may keep, remove, merge, rename, or add categories if it materially improves the preset.',
             'Return a complete preset tree in one response.',
         ];
@@ -172,12 +189,19 @@ export function createMasterPromptBuilder({
         }
 
         lines.push(
+            getGenerationFocusInstruction(options.generationFocus),
             'Keep directive names short, reusable, concrete, and useful across several replies.',
+            options.generateDescriptions === false
+                ? 'Do not generate directive descriptions. Omit the description field; use concise directive names and intensity values. Keep category hints as interface help.'
+                : 'Give every directive a non-empty description: 1-2 concise sentences explaining how to express its effect in the reply, not merely repeating its name. Maximum 1000 characters.',
+            'Directive descriptions are sent to the roleplay model. Category hints are interface help only and are not included in the directing prompt.',
             'Use meaningful directive values from 55 to 90 in steps of 5.',
             'Do not use 0: generated directives must be active steering signals, not disabled placeholders.',
             'Avoid 50 unless the source clearly calls for a deliberately weak neutral influence.',
             'Set every directive active to true. Never generate inactive directives.',
-            'Return 3 to 7 categories and usually 6 to 14 directives total.',
+            options.presetSize === 'compact'
+                ? 'Return a compact preset: 2 to 3 categories and 4 to 6 directives total. Keep only the strongest distinct ideas.'
+                : 'Return 3 to 7 categories and usually 6 to 14 directives total.',
             'Prefer 1 to 4 directives per category.',
             'Avoid duplicates, synonyms, and filler.',
             'Directives must shape tone, pacing, framing, conflict, intimacy, escalation, and scene movement.',
@@ -199,6 +223,7 @@ export function createMasterPromptBuilder({
             '      "directives": [',
             '        {',
             '          "name": "short directive name",',
+            ...(options.generateDescriptions === false ? [] : ['          "description": "how this directive should shape the reply",']),
             '          "value": 70,',
             '          "active": true',
             '        }',
@@ -211,7 +236,7 @@ export function createMasterPromptBuilder({
         return lines.join('\n');
     }
 
-    function buildMasterMessages(userRequest = '') {
+    function buildMasterMessages(userRequest = '', options = {}) {
         const sourceText = getResolvedMasterContext();
         const categories = getCategories();
         const languageMeta = getMasterLanguageMeta(inferMasterLanguage(sourceText));
@@ -252,7 +277,7 @@ export function createMasterPromptBuilder({
             sourceText || '(данных недостаточно)',
         );
 
-        const systemPrompt = buildMasterSystemPrompt(categories, languageMeta, trimmedRequest);
+        const systemPrompt = buildMasterSystemPrompt(categories, languageMeta, trimmedRequest, options);
 
         return {
             sourceText,
@@ -285,16 +310,20 @@ export function createMasterPromptBuilder({
             .join('; ');
         const systemPrompt = [
             'You create Scene Director directives for one category in a roleplay preset.',
+            getGenerationFocusInstruction(options.generationFocus),
             'Return plain text only. No JSON. No markdown. No explanations.',
-            `Write the directive name in ${languageMeta.labelEn}.`,
+            `Write the directive name${options.generateDescriptions === false ? '' : ' and description'} in ${languageMeta.labelEn}.`,
             'Output exactly one directive in exactly one line in this format:',
-            `ITEM|${category.id}|70|short directive name`,
+            `ITEM|${category.id}|70|short directive name|true${options.generateDescriptions === false ? '' : '|concise directive description'}`,
             'Rules:',
             `- Use only the category "${category.id}".`,
             '- Return exactly one ITEM line.',
             '- Start immediately with ITEM| on the first line.',
             '- No preset name line.',
             '- Directive names must be short, concrete, reusable, and without quotes or pipe symbols.',
+            options.generateDescriptions === false
+                ? '- Do not generate a description; end the line after true.'
+                : '- Include a non-empty description of how to express the directive in a reply: 1-2 concise sentences, at most 1000 characters, without pipe symbols or line breaks.',
             '- Values must be integers from 0 to 100 in steps of 5.',
             '- Prefer values from 55 to 90. Do not use 0 or 50 for generated directives.',
             '- Generated directives are always active; do not output inactive/off/false.',

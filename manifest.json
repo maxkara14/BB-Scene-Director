@@ -2,7 +2,7 @@
     "name": "BB-Scene-Director",
     "display_name": "BB Scene Director",
     "description": "Секции сцены с древовидными категориями, отдельным мастер-пресетом и JSON-импортом/экспортом пресетов.",
-    "version": "1.2.0",
+    "version": "2.0.0",
     "author": "BruniikBron",
     "js": "index.js",
     "css": "style.css",
