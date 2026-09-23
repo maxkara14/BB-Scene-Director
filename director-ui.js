@@ -727,6 +727,87 @@ export function createSceneDirectorUiController({
         $('body').append(hudHtml);
         panelScreens.mount();
 
+        const toggleElement = document.getElementById('bb-director-toggle');
+        const positionKey = 'bb-scene-director-toggle-top';
+        let dragState = null;
+        const clampToggleTop = top => {
+            const height = toggleElement?.getBoundingClientRect().height || 84;
+            const min = Math.max(0, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bb-dir-offset-top')) || 0);
+            return Math.max(min, Math.min(Math.max(min, window.innerHeight - height - 8), top));
+        };
+        const applySavedTogglePosition = () => {
+            if (!toggleElement) return;
+            const raw = Number.parseFloat(localStorage.getItem(positionKey));
+            const offsetTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bb-dir-offset-top')) || 0;
+            const top = Number.isFinite(raw) ? clampToggleTop(raw) : clampToggleTop(offsetTop + 160);
+            toggleElement.style.setProperty('--bb-dir-toggle-top', `${Math.round(top)}px`);
+        };
+        applySavedTogglePosition();
+        const hudElement = document.getElementById('bb-director-hud');
+        const setHudOpen = open => {
+            hudElement.classList.toggle('open', open);
+            hudElement.classList.remove('is-panel-dragging');
+            hudElement.style.setProperty('--bb-dir-drag-progress', open ? '1' : '0');
+            hudElement.inert = !open;
+            toggleElement.classList.toggle('is-open', open);
+            toggleElement.classList.remove('is-panel-dragging');
+            toggleElement.style.setProperty('--bb-dir-drag-progress', open ? '1' : '0');
+            toggleElement.setAttribute('aria-expanded', String(open));
+            toggleElement.setAttribute('aria-label', open ? 'Закрыть Scene Director' : 'Открыть Scene Director');
+            $('#bb-dir-arrow').toggleClass('fa-chevron-left', open).toggleClass('fa-chevron-right', !open);
+        };
+        toggleElement?.addEventListener('pointerdown', event => {
+            if (event.pointerType === 'mouse' && event.button !== 0) return;
+            dragState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startTop: toggleElement.getBoundingClientRect().top, startOpen: hudElement.classList.contains('open'), mode: null, moved: false };
+            toggleElement.setPointerCapture?.(event.pointerId);
+        });
+        toggleElement?.addEventListener('pointermove', event => {
+            if (!dragState || event.pointerId !== dragState.pointerId) return;
+            const deltaX = event.clientX - dragState.startX;
+            const delta = event.clientY - dragState.startY;
+            if (!dragState.mode && Math.max(Math.abs(deltaX), Math.abs(delta)) < 5) return;
+            if (!dragState.mode) {
+                const horizontalDistance = Math.abs(deltaX);
+                const verticalDistance = Math.abs(delta);
+                if (horizontalDistance < verticalDistance * 1.25 && verticalDistance < horizontalDistance * 1.25) return;
+                dragState.mode = horizontalDistance > verticalDistance ? 'panel' : 'position';
+            }
+            dragState.moved = true;
+            event.preventDefault();
+            if (dragState.mode === 'panel') {
+                const panelWidth = hudElement.getBoundingClientRect().width || 370;
+                const progress = Math.max(0, Math.min(1, dragState.startOpen ? 1 + (deltaX / panelWidth) : deltaX / panelWidth));
+                hudElement.classList.add('is-panel-dragging');
+                toggleElement.classList.add('is-panel-dragging');
+                hudElement.style.setProperty('--bb-dir-drag-progress', String(progress));
+                toggleElement.style.setProperty('--bb-dir-drag-progress', String(progress));
+                return;
+            }
+            toggleElement.classList.add('is-dragging');
+            toggleElement.style.setProperty('--bb-dir-toggle-top', `${Math.round(clampToggleTop(dragState.startTop + delta))}px`);
+        });
+        const finishToggleDrag = event => {
+            if (!dragState || event.pointerId !== dragState.pointerId) return;
+            if (dragState.mode === 'panel') {
+                const progress = Number.parseFloat(hudElement.style.getPropertyValue('--bb-dir-drag-progress')) || 0;
+                setHudOpen(progress >= 0.45);
+                toggleElement.dataset.dragged = 'true';
+            } else if (dragState.moved) {
+                const top = clampToggleTop(toggleElement.getBoundingClientRect().top);
+                toggleElement.style.setProperty('--bb-dir-toggle-top', `${Math.round(top)}px`);
+                localStorage.setItem(positionKey, String(Math.round(top)));
+                toggleElement.dataset.dragged = 'true';
+            }
+            toggleElement.classList.remove('is-dragging');
+            hudElement.classList.remove('is-panel-dragging');
+            dragState = null;
+        };
+        toggleElement?.addEventListener('pointerup', finishToggleDrag);
+        toggleElement?.addEventListener('pointercancel', finishToggleDrag);
+        if (typeof window !== 'undefined') {
+            window.addEventListener('resize', applySavedTogglePosition, { passive: true });
+        }
+
         $('#bb-dir-search-toggle').on('click', () => {
             setSearchOpen(!searchOpen);
             renderDirectorHud();
@@ -752,21 +833,24 @@ export function createSceneDirectorUiController({
         });
 
         $('#bb-director-toggle').on('click', function onToggleClick() {
+            const toggle = this || toggleElement;
+            if (toggle?.dataset?.dragged === 'true') {
+                delete toggle.dataset.dragged;
+                return;
+            }
+            if (hudElement) {
+                setHudOpen(!hudElement.classList.contains('open'));
+                return;
+            }
             const hud = $('#bb-director-hud');
-            const toggle = $('#bb-director-toggle');
-
+            const fallbackToggle = $('#bb-director-toggle');
             hud.toggleClass('open');
             const isOpen = hud.hasClass('open');
             hud.prop('inert', !isOpen);
-            toggle.toggleClass('is-open', isOpen);
-            toggle.attr('aria-expanded', String(isOpen));
-            toggle.attr('aria-label', isOpen ? 'Закрыть Scene Director' : 'Открыть Scene Director');
-
-            if (hud.hasClass('open')) {
-                $('#bb-dir-arrow').removeClass('fa-chevron-right').addClass('fa-chevron-left');
-            } else {
-                $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
-            }
+            fallbackToggle.toggleClass('is-open', isOpen);
+            fallbackToggle.attr('aria-expanded', String(isOpen));
+            fallbackToggle.attr('aria-label', isOpen ? 'Закрыть Scene Director' : 'Открыть Scene Director');
+            $('#bb-dir-arrow').toggleClass('fa-chevron-left', isOpen).toggleClass('fa-chevron-right', !isOpen);
         });
 
         $('#bb-dir-list')
