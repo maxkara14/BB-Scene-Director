@@ -1,20 +1,24 @@
 # 🎬 BB Scene Director
 
+[Русский](README.md) · **English** · [Changelog](CHANGELOG.md#english)
+
 Scene direction tools for **SillyTavern**. Control atmosphere, pacing and story focus with reusable directives, presets and a scene-specific prompt.
 
-[Русская документация](README.md)
+---
 
 ## ✨ Features
 
-- **Directives** grouped by category, with 0–100% intensity and optional descriptions.
-- **Scene Master** that generates a new preset from the current chat context and your instructions.
-- **Scene editing** with previews, selective application and protection for pinned directives.
-- **Temporary instructions** that last for a chosen number of turns or until disabled.
-- **Presets** with saving, loading, renaming and JSON import/export.
-- **History** with undo and redo for unsaved edits.
-- **Per-chat scenes** for separate instructions in regular and group chats.
-- **Scene search** and prompt preview before a reply is generated.
-- **Responsive drawer** designed for desktop and mobile screens.
+| Tool | What it does |
+|---|---|
+| 🎚️ **Directives** | Categories, 0–100% intensity, toggles and optional prompt descriptions |
+| 🪄 **Scene Master** | Generates presets from chat context and your instructions |
+| 📝 **Scene editing** | Previews suggested changes, applies selected edits and protects pinned directives |
+| ⏳ **Temporary instructions** | Last for a chosen number of turns or until disabled |
+| 🧩 **Presets** | Save, load, rename and exchange presets as JSON |
+| 💬 **Separate scenes** | Keep directives and pause state for each regular or group chat |
+| ↩️ **Edit history** | Undo and redo up to 20 unsaved changes |
+| 🔎 **Search and prompt** | Find directives, preview the prompt and insert it automatically or with `{{bb_scene}}` |
+| 📱 **Drawer** | Use the scene, editor and preset controls on desktop and mobile screens |
 
 The Scene Director tab can be dragged vertically to move it out of the way; its position is saved. Drag the tab horizontally to reveal the drawer progressively while holding the pointer or finger. A normal click still opens or closes the panel.
 
@@ -38,7 +42,7 @@ flowchart LR
 
 The drawer contains the current scene, Scene Master controls and the directive editor. On narrow screens, move the tab vertically before opening the drawer if it overlaps another control.
 
-![Scene Director interface](docs/images/scene-director.png)
+![Scene Director interface](images/scene-director.png)
 
 ## 📦 Installation
 

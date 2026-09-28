@@ -1091,14 +1091,11 @@ export function createSceneDirectorUiController({
         }
 
         toggleButton.hide();
-        if (hud.hasClass('open')) {
-            hud.removeClass('open');
-            hud.prop('inert', true);
-            toggleButton.removeClass('is-open');
-            toggleButton.attr('aria-expanded', 'false');
-            toggleButton.attr('aria-label', 'Открыть Scene Director');
-            $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
-        }
+        hud.removeClass('open is-panel-dragging').css('--bb-dir-drag-progress', '0').prop('inert', true);
+        toggleButton.removeClass('is-open is-panel-dragging').css('--bb-dir-drag-progress', '0');
+        toggleButton.attr('aria-expanded', 'false');
+        toggleButton.attr('aria-label', 'Открыть Scene Director');
+        $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
     }
 
     function updateHudTopOffset() {
