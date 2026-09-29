@@ -4,6 +4,10 @@
 
 ## Русский
 
+### Микрообновление — 29 сентября 2026 (без изменения версии)
+
+- Вне чата панель и язычок Scene Director скрыты. При входе в чат язычок плавно появляется; при выходе открытая панель задвигается вместе с ним, после чего язычок гаснет.
+
 ### Микрообновление — 28 сентября 2026 (без изменения версии)
 
 - Исправлено рассоединение язычка и панели при выходе из чата: состояние открытия теперь сбрасывается для обоих элементов.
@@ -16,6 +20,10 @@
 - Исправлено позиционирование язычка на узких мобильных экранах.
 
 ## English
+
+### Minor update — September 29, 2026 (no version change)
+
+- The Scene Director panel and tab stay hidden outside chats. The tab fades in on entry; on exit, an open panel slides closed with the tab before the tab fades out.
 
 ### Minor update — September 28, 2026 (no version change)
 

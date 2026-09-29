@@ -32,6 +32,7 @@ export function createSceneDirectorUiController({
     let searchQuery = '';
     let searchOpen = false;
     let searchScope;
+    let hudExitTimer = null;
 
     function setSearchOpen(open) {
         searchOpen = open;
@@ -1086,16 +1087,34 @@ export function createSceneDirectorUiController({
         const hud = $('#bb-director-hud');
 
         if (context.chatId) {
-            toggleButton.show();
+            clearTimeout(hudExitTimer);
+            hudExitTimer = null;
+            document.body.classList.remove('bb-director-chat-leaving');
+            document.body.classList.add('bb-director-chat-visible');
             return;
         }
 
-        toggleButton.hide();
+        if (hudExitTimer) return;
+        const wasOpen = hud.hasClass('open') || hud.hasClass('is-panel-dragging');
         hud.removeClass('open is-panel-dragging').css('--bb-dir-drag-progress', '0').prop('inert', true);
         toggleButton.removeClass('is-open is-panel-dragging').css('--bb-dir-drag-progress', '0');
         toggleButton.attr('aria-expanded', 'false');
         toggleButton.attr('aria-label', 'Открыть Scene Director');
         $('#bb-dir-arrow').removeClass('fa-chevron-left').addClass('fa-chevron-right');
+        if (!document.body.classList.contains('bb-director-chat-visible')) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.body.classList.remove('bb-director-chat-visible');
+            return;
+        }
+        const fadeTab = () => {
+            document.body.classList.add('bb-director-chat-leaving');
+            hudExitTimer = setTimeout(() => {
+                hudExitTimer = null;
+                document.body.classList.remove('bb-director-chat-visible', 'bb-director-chat-leaving');
+            }, 180);
+        };
+        if (wasOpen) hudExitTimer = setTimeout(fadeTab, 220);
+        else fadeTab();
     }
 
     function updateHudTopOffset() {

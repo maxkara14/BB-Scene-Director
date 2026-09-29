@@ -82,6 +82,10 @@
 #bb-director-hud.open {
     transform: translateX(0);
 }
+body:not(.bb-director-chat-visible) #bb-director-hud {
+    visibility: hidden;
+    pointer-events: none;
+}
 
 #bb-director-hud.is-panel-dragging {
     transform: translateX(calc((var(--bb-dir-drag-progress, 0) - 1) * 100%));
@@ -124,7 +128,19 @@
     touch-action: none;
     user-select: none;
     box-shadow: 8px 0 18px rgba(2, 6, 15, 0.36);
-    transition: transform 0.22s ease, background 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.22s ease, background 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.18s ease;
+}
+body.bb-director-chat-visible #bb-director-toggle {
+    visibility: visible;
+}
+body:not(.bb-director-chat-visible) #bb-director-toggle {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+body.bb-director-chat-leaving #bb-director-toggle {
+    opacity: 0;
+    pointer-events: none;
 }
 
 #bb-director-toggle:hover {
